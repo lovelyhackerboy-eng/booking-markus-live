@@ -220,6 +220,17 @@ export const bookings = mysqlTable(
   (t) => [index("bookings_creator_idx").on(t.creatorId), index("bookings_campaign_idx").on(t.campaignId)],
 );
 
+/* ---------- AI assistant ---------- */
+
+// One shared assistant thread per campaign (everyone who can see the campaign sees it). messages/brief are JSON text.
+export const aiThreads = mysqlTable("ai_threads", {
+  campaignId: varchar("campaign_id", { length: 40 }).primaryKey(),
+  messages: text("messages").notNull(),
+  brief: text("brief"),
+  updatedBy: varchar("updated_by", { length: 190 }),
+  updatedAt: ts("updated_at").notNull(),
+});
+
 /* ---------- Operations ---------- */
 
 export const reviewQueue = mysqlTable("review_queue", {

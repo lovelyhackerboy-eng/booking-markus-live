@@ -2,10 +2,15 @@
 // values go to DeepSeek — no creator data. The answer is validated: unknown categories/regions are dropped into
 // `unsupported`, price criteria are removed for roles without `price`.
 import { can, type Role } from "../auth/roles";
-import { chat } from "./deepseek";
+import { chat, NO_USAGE, type Usage } from "./deepseek";
 import { catalogOf, type Compact, type Criteria } from "./creators";
 
 export type SearchResult = { patch: Criteria & { q?: string }; understood: string[]; unsupported: string[]; priceSkipped: boolean };
+
+// Same question again → same filters: cache 24 h per (normalised query, price permission, allowed values).
+const CACHE = new Map<string, { at: number; result: SearchResult }>();
+const CACHE_TTL = 24 * 3600_000;
+const normQuery = (q: string) => q.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : undefined);
 const pickAll = (vals: unknown, allowed: string[]) => {
@@ -74,8 +79,11 @@ export function validate(raw: unknown, cat: ReturnType<typeof catalogOf>, role: 
   return { patch, understood: understood.slice(0, 10), unsupported: [...new Set(unsupported)].slice(0, 10), priceSkipped };
 }
 
-export async function aiSearch(query: string, role: Role, creators: Compact[]): Promise<SearchResult> {
+export async function aiSearch(query: string, role: Role, creators: Compact[]): Promise<SearchResult & { cached: boolean; usage: Usage }> {
   const cat = catalogOf(creators);
+  const key = JSON.stringify([normQuery(query), can(role, "price"), cat.categories, cat.regions]);
+  const hit = CACHE.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL) return { ...hit.result, cached: true, usage: NO_USAGE };
   const r = await chat({
     messages: [
       { role: "system", content: systemPrompt(cat, can(role, "price")) },
@@ -92,5 +100,8 @@ export async function aiSearch(query: string, role: Role, creators: Compact[]): 
   } catch {
     parsed = {};
   }
-  return validate(parsed, cat, role);
+  const result = validate(parsed, cat, role);
+  if (CACHE.size > 500) CACHE.clear();
+  CACHE.set(key, { at: Date.now(), result });
+  return { ...result, cached: false, usage: r.usage };
 }

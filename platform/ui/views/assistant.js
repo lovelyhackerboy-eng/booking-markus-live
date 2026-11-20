@@ -5,7 +5,20 @@ import { can, getCreator, toggleShortlist, inShortlist, getList } from "../core/
 import { api } from "../data/live.js";
 import { PLATFORMS } from "../data/catalog.js";
 
-const threads = {}; // { [campaignId | "_"]: [{ role, content, proposals? }] } — giữ trong phiên làm việc
+const threads = {}; // chưa mở campaign: hội thoại chỉ giữ trong phiên. Có campaign: lưu ở server, dùng chung cả nhóm.
+const briefText = (b) => {
+  if (!b) return "";
+  const parts = [];
+  if (b.categories && b.categories.length) parts.push(b.categories.join(", "));
+  if (b.regions && b.regions.length) parts.push(b.regions.join(", "));
+  if (b.heroes && b.heroes.length) parts.push("kênh chính " + b.heroes.join("/"));
+  if (b.platforms && b.platforms.length) parts.push("có " + b.platforms.join("/"));
+  if (b.followersMin) parts.push("≥ " + fmtNum(b.followersMin) + " follower");
+  if (b.budgetPerCreator) parts.push("≤ " + fmtNum(b.budgetPerCreator) + " ₫/người");
+  if (b.count) parts.push(b.count + " người");
+  if (b.notes) parts.push(b.notes);
+  return parts.join(" · ");
+};
 
 const STARTERS = [
   "Gợi ý 10 creator phù hợp với campaign này",
@@ -35,16 +48,27 @@ export function openAssistant(list) {
   const o = openOverlay({
     kind: "drawer", wide: true,
     title: `${icon("sparkles", 18)} Trợ lý AI${list ? " · " + list.name : ""}`,
-    body: `<div class="ai-chat" id="ai-log"></div>
+    body: `${listId ? `<div class="ai-brief row-wrap" id="ai-brief"></div>` : ""}<div class="ai-chat" id="ai-log"></div>
       <form class="ai-input" id="ai-form"><textarea class="input" id="ai-text" rows="2" placeholder="Mô tả brief: ngành, khu vực, kênh, ngân sách, số lượng…"></textarea>
       <button class="btn btn-primary" type="submit">${icon("sparkles", 16)} Gửi</button></form>
       <p class="faint" style="margin-top:6px">AI chỉ đề xuất. Không gửi thông tin liên hệ hay ghi chú nội bộ cho AI. Dữ liệu chưa có ER, view, audience.</p>`,
   });
   const log = $("#ai-log", o.el);
+  let brief = null;
+  const drawBrief = () => {
+    const el = $("#ai-brief", o.el);
+    if (!el) return;
+    el.innerHTML = `${brief ? `<span class="badge badge-ai">${icon("sparkles", 12)} Brief đã lưu</span> <span class="faint">${esc(briefText(brief))}</span>` : `<span class="faint">Hội thoại và brief của campaign được lưu, cả nhóm cùng xem.</span>`}
+      ${msgs.length ? `<button class="btn btn-ghost btn-sm" type="button" id="ai-clear">Xoá hội thoại</button>` : ""}`;
+    $("#ai-clear", o.el)?.addEventListener("click", async () => {
+      try { await api(`/ai/agent?campaignId=${encodeURIComponent(listId)}`, { method: "DELETE" }); } catch (e) { return toast("Chưa xoá được", e.message, "danger"); }
+      msgs.length = 0; brief = null; drawBrief(); draw();
+    });
+  };
   const draw = (busy = false) => {
     log.innerHTML = (msgs.length ? msgs : [])
       .map((m, i) => m.role === "user"
-        ? `<div class="ai-msg ai-user">${esc(m.content)}</div>`
+        ? `<div class="ai-msg ai-user">${m.by ? `<span class="dt-sub">${esc(m.by)}</span>` : ""}${esc(m.content)}</div>`
         : `<div class="ai-msg ai-bot">${fmt(m.content)}${proposalsHtml(m, i, listId)}</div>`).join("")
       + (msgs.length ? "" : `<div class="ai-starters">${STARTERS.map((s) => `<button class="btn btn-sm btn-ai" type="button" data-starter="${esc(s)}">${esc(s)}</button>`).join("")}</div>`)
       + (busy ? `<div class="ai-msg ai-bot"><span class="thinking" aria-hidden="true"><i></i><i></i><i></i></span> Đang tìm trong CSDL…</div>` : "");
@@ -55,8 +79,12 @@ export function openAssistant(list) {
     msgs.push({ role: "user", content: text.trim() });
     draw(true);
     try {
-      const r = await api("/ai/agent", { method: "POST", body: { campaignId: listId, messages: msgs.map((m) => ({ role: m.role, content: m.content })) } });
+      // Có campaign: chỉ gửi câu mới — lịch sử + brief nằm ở server. Chưa có campaign: gửi cả hội thoại của phiên.
+      const payload = listId ? [{ role: "user", content: text.trim() }] : msgs.map((m) => ({ role: m.role, content: m.content }));
+      const r = await api("/ai/agent", { method: "POST", body: { campaignId: listId, messages: payload } });
       msgs.push({ role: "assistant", content: r.reply || "(không có trả lời)", proposals: r.proposals || [] });
+      if (r.brief !== undefined) brief = r.brief;
+      drawBrief();
     } catch (e) {
       msgs.push({ role: "assistant", content: e.message === "rate_limited" ? "Bạn hỏi hơi nhanh, đợi một phút rồi thử lại nhé." : e.message === "ai_not_configured" ? "Máy chủ chưa cấu hình AI." : "AI đang bận hoặc lỗi kết nối. Thử lại sau ít phút." });
     }
@@ -76,5 +104,13 @@ export function openAssistant(list) {
     draw();
   });
   draw();
+  drawBrief();
+  if (listId) {
+    draw(true);
+    api(`/ai/agent?campaignId=${encodeURIComponent(listId)}`)
+      .then((r) => { msgs.splice(0, msgs.length, ...(r.messages || [])); brief = r.brief || null; })
+      .catch(() => {})
+      .finally(() => { draw(); drawBrief(); });
+  }
   setTimeout(() => $("#ai-text", o.el)?.focus(), 50);
 }

@@ -387,3 +387,5 @@ a.chan-item:hover .num { text-decoration: underline; }
 .ai-prop input { margin-top: 4px; }
 .ai-input { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px; }
 .ai-input textarea { flex: 1; resize: vertical; min-height: 44px; }
+
+.ai-brief { gap: 8px; align-items: center; margin-bottom: 10px; }

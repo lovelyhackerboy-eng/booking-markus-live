@@ -29,6 +29,13 @@
       "when": 1795189477713,
       "tag": "0003_note_campaign",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1795197290800,
+      "tag": "0004_ai_threads",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,10 @@ function apiKey(): string {
   }
 }
 
+export type Usage = { prompt: number; cacheHit: number; completion: number };
+export const addUsage = (a: Usage, b: Usage): Usage => ({ prompt: a.prompt + b.prompt, cacheHit: a.cacheHit + b.cacheHit, completion: a.completion + b.completion });
+export const NO_USAGE: Usage = { prompt: 0, cacheHit: 0, completion: 0 };
+
 type Fetcher = typeof fetch;
 let fetcher: Fetcher = (...a) => fetch(...a);
 export function setFetcherForTests(f: Fetcher | null) {
@@ -39,7 +43,7 @@ export async function chat(opts: {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
-}): Promise<{ content: string | null; toolCalls: ToolCall[]; model: string }> {
+}): Promise<{ content: string | null; toolCalls: ToolCall[]; model: string; usage: Usage }> {
   const key = apiKey();
   let lastStatus = 0;
   for (const model of MODELS) {
@@ -62,10 +66,20 @@ export async function chat(opts: {
       });
       lastStatus = res.status;
       if (!res.ok) continue;
-      const j = (await res.json()) as { model?: string; choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[] };
+      const j = (await res.json()) as {
+        model?: string;
+        choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[];
+        usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_cache_hit_tokens?: number };
+      };
       const m = j.choices?.[0]?.message;
       if (!m) continue;
-      return { content: m.content ?? null, toolCalls: m.tool_calls ?? [], model: j.model ?? model };
+      const u = j.usage ?? {};
+      return {
+        content: m.content ?? null,
+        toolCalls: m.tool_calls ?? [],
+        model: j.model ?? model,
+        usage: { prompt: u.prompt_tokens ?? 0, cacheHit: u.prompt_cache_hit_tokens ?? 0, completion: u.completion_tokens ?? 0 },
+      };
     } catch {
       lastStatus = lastStatus || 599;
     } finally {

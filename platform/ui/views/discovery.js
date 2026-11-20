@@ -202,6 +202,10 @@ function runQuery(text) {
   };
   const rules = () => parseQuery(text, { allowPrice: can("price") });
   if (!FEATURES.aiSearch) return void setTimeout(() => apply(rules(), "rules"), 300);
+  // Bộ đọc từ khoá hiểu trọn câu (không sót từ, không có ý "chưa lọc được") → dùng luôn: tức thì, không tốn lượt AI.
+  // Chỉ câu khó (từ lạ, ý mơ hồ) mới gọi DeepSeek.
+  const quick = rules();
+  if (quick.understood.length && !quick.leftover.length && !(quick.unsupported || []).length && !quick.patch.q) return void setTimeout(() => apply(quick, "rules-fast"), 150);
   // DeepSeek đọc câu (server kiểm giá trị); quá 12 giây hoặc lỗi → bộ đọc theo luật, kết quả vẫn ra.
   Promise.race([api("/ai/search", { method: "POST", body: { query: text } }), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 12000))])
     .then((r) => {
