@@ -1,0 +1,20 @@
+# Local MariaDB matching the host (10.6), on 127.0.0.1:3307. Dev-only credentials; the host uses its own (runtime.env).
+#   docker compose -f docker-compose.dev.yml up -d
+#   DATABASE_URL=mysql://markus:markus-dev@127.0.0.1:3307/markus_v2       (npm run dev / db:migrate / db:seed)
+#   TEST_DATABASE_URL=mysql://markus:markus-dev@127.0.0.1:3307/markus_v2_test  (npm test)
+services:
+  db:
+    image: mariadb:10.6
+    container_name: mkv2-db
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_520_ci"]
+    environment:
+      MARIADB_ROOT_PASSWORD: root-dev
+      MARIADB_DATABASE: markus_v2
+      MARIADB_USER: markus
+      MARIADB_PASSWORD: markus-dev
+    ports: ["127.0.0.1:3307:3306"]
+    volumes:
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - mkv2-db:/var/lib/mysql
+volumes:
+  mkv2-db:

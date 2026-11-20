@@ -1,0 +1,1 @@
+ALTER TABLE `rates` MODIFY COLUMN `amount_text` text;

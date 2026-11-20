@@ -1,0 +1,190 @@
+/* ===========================================================
+   styles/luxe.css — hướng "Midnight Luxe" (mặc định, dark-first).
+   Thương hiệu Markus: navy sâu #0A1628 + gold #C8A045 làm điểm nhấn + tím #5b5bd6 phụ (AI).
+   Aurora mờ sau trang, panel kính, viền gold mảnh ở trạng thái active, số liệu lớn.
+   Phần 1 = token (bắt buộc). Phần 2 = tinh chỉnh riêng của hướng (tuỳ chọn).
+   =========================================================== */
+
+/* ---------- 1a. Token — theme tối (bản chính) ---------- */
+[data-style="luxe"][data-theme="dark"] {
+  --bg: #0a1628;
+  --page-bg:
+    radial-gradient(58% 46% at 12% -6%, rgba(91, 91, 214, .30), transparent 62%),
+    radial-gradient(46% 40% at 92% 2%, rgba(200, 160, 69, .20), transparent 60%),
+    radial-gradient(50% 44% at 60% 108%, rgba(42, 127, 184, .16), transparent 62%),
+    #0a1628;
+  --bg-elev: #12203a;
+  --bg-soft: #182947;
+  --bg-hover: #1e3154;
+  --card-bg: rgba(18, 32, 58, .78);       /* sàn độ đục 78% → chữ không phụ thuộc thứ nằm sau kính */
+  --card-border: rgba(255, 255, 255, .09);
+  --card-blur: blur(18px) saturate(140%);
+  --card-shadow: 0 14px 44px rgba(0, 0, 0, .34);
+  --card-hi: inset 0 1px 0 rgba(255, 255, 255, .07);
+
+  --text: #f4efe3;
+  --text-soft: #bcc6da;
+  --text-faint: #93a0bb;
+  --border: #24344f;
+  --border-strong: #3a4c6e;
+
+  --primary: #dcb95f;
+  --primary-hover: #ebcd80;
+  --primary-soft: rgba(200, 160, 69, .16);
+  --primary-ink: #0a1628;
+  --btn-bg: linear-gradient(135deg, #ecd084 0%, #c8a045 52%, #a98632 100%);
+  --btn-ink: #0a1628;
+  --btn-shadow: 0 6px 22px rgba(200, 160, 69, .28), inset 0 1px 0 rgba(255, 255, 255, .35);
+  --accent: #c8a045;
+  --accent-ink: #0a1628;
+  --accent-soft: rgba(200, 160, 69, .14);
+
+  --ai: #b6adff;
+  --ai-soft: rgba(124, 116, 240, .18);
+  --ai-border: rgba(150, 142, 255, .42);
+  --ai-grad: linear-gradient(120deg, #8b8bf0, #c8a045);
+
+  --nav-bg: linear-gradient(180deg, rgba(9, 19, 36, .94), rgba(6, 13, 26, .96));
+  --nav-line: rgba(200, 160, 69, .18);
+  --nav-text: #a4b1cc;
+  --nav-text-strong: #ffffff;
+  --nav-hover: rgba(255, 255, 255, .06);
+  --nav-active-bg: linear-gradient(135deg, rgba(200, 160, 69, .22), rgba(200, 160, 69, .06));
+  --nav-active-ink: #ecd084;
+  --nav-indicator: linear-gradient(180deg, #ecd084, #a98632);
+  --nav-accent: #c8a045;
+
+  --tier-nano: #a3aec6;  --tier-nano-2: #55627f;
+  --tier-micro: #7cc8ee; --tier-micro-2: #2a7fb8;
+  --tier-mid: #ada9ff;   --tier-mid-2: #5b5bd6;
+  --tier-macro: #ecd084; --tier-macro-2: #a98632;
+  --tier-mega: #ff9db0;  --tier-mega-2: #c8a045;
+
+  --g1a: #4a4ad0; --g1b: #c8a045;
+  --g2a: #15264d; --g2b: #6a6ae6;
+  --g3a: #6d2a66; --g3b: #e0935e;
+  --g4a: #0e5560; --g4b: #3aa6cf;
+  --g5a: #342878; --g5b: #c2558f;
+  --g6a: #5e4310; --g6b: #e0bf66;
+  --g7a: #103858; --g7b: #5fcdbb;
+  --g8a: #471d3b; --g8b: #e36f7f;
+  --art-fg: #f6efe0;
+  --art-ink: #0a1628;
+
+  --hero-bg:
+    radial-gradient(60% 90% at 18% 0%, rgba(124, 116, 240, .34), transparent 60%),
+    radial-gradient(52% 80% at 86% 10%, rgba(200, 160, 69, .26), transparent 62%),
+    linear-gradient(180deg, rgba(18, 32, 58, .82), rgba(12, 24, 46, .82));
+  --hero-grad: linear-gradient(100deg, #ecd084 10%, #c8a045 45%, #b6adff 95%);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow: 0 10px 34px rgba(0, 0, 0, .38);
+  --shadow-lg: 0 24px 70px rgba(0, 0, 0, .58);
+  --glow: 0 0 0 1px rgba(200, 160, 69, .35), 0 18px 50px -14px var(--tier-c, rgba(200, 160, 69, .5));
+  --focus-ring: 0 0 0 2px #0a1628, 0 0 0 4px #dcb95f;
+  --sb-thumb: #c8a045;
+  --sb-track: rgba(255, 255, 255, .06);
+  --chart-line: #dcb95f;
+}
+
+/* ---------- 1b. Token — theme sáng ("Ivory"): nền ngà, chữ navy, nút navy chữ gold ---------- */
+[data-style="luxe"][data-theme="light"] {
+  --bg: #f6f2e9;
+  --page-bg:
+    radial-gradient(52% 40% at 10% -6%, rgba(91, 91, 214, .12), transparent 62%),
+    radial-gradient(44% 38% at 94% 0%, rgba(200, 160, 69, .22), transparent 60%),
+    #f6f2e9;
+  --bg-elev: #ffffff;
+  --bg-soft: #efe9dc;
+  --bg-hover: #e8e0cf;
+  --card-bg: rgba(255, 255, 255, .86);
+  --card-border: rgba(10, 22, 40, .10);
+  --card-blur: blur(16px) saturate(130%);
+  --card-shadow: 0 12px 36px rgba(60, 44, 10, .09);
+  --card-hi: inset 0 1px 0 rgba(255, 255, 255, .9);
+
+  --text: #0a1628;
+  --text-soft: #3b4861;
+  --text-faint: #5a657d;
+  --border: #e3dccb;
+  --border-strong: #c7bda6;
+
+  --primary: #76570e;            /* gold đậm để làm chữ / chỉ báo trên nền sáng (đạt AA) */
+  --primary-hover: #5d440a;
+  --primary-soft: #f3e8cc;
+  --primary-ink: #ffffff;
+  --btn-bg: linear-gradient(135deg, #17294b 0%, #0a1628 100%);
+  --btn-ink: #ecd084;
+  --btn-shadow: 0 8px 22px rgba(10, 22, 40, .24), inset 0 1px 0 rgba(255, 255, 255, .12);
+  --accent: #c8a045;
+  --accent-ink: #0a1628;
+  --accent-soft: #f6ecd2;
+
+  --ai: #5544c4;
+  --ai-soft: #ece9fb;
+  --ai-border: #cbc3f2;
+  --ai-grad: linear-gradient(120deg, #5b5bd6, #c8a045);
+
+  --nav-bg: linear-gradient(180deg, #0a1628, #0d1e35);
+  --nav-line: rgba(200, 160, 69, .22);
+  --nav-text: #a4b1cc;
+  --nav-text-strong: #ffffff;
+  --nav-hover: rgba(255, 255, 255, .06);
+  --nav-active-bg: linear-gradient(135deg, rgba(200, 160, 69, .24), rgba(200, 160, 69, .06));
+  --nav-active-ink: #ecd084;
+  --nav-indicator: linear-gradient(180deg, #ecd084, #a98632);
+  --nav-accent: #c8a045;
+
+  --tier-nano: #56617a;  --tier-nano-2: #aab3c6;
+  --tier-micro: #1b5f8d; --tier-micro-2: #5eb2e0;
+  --tier-mid: #4a41c2;   --tier-mid-2: #8b8bf0;
+  --tier-macro: #76570e; --tier-macro-2: #dcb95f;
+  --tier-mega: #a52a3a;  --tier-mega-2: #dcb95f;
+
+  --g1a: #4a4ad0; --g1b: #c8a045;
+  --g2a: #15264d; --g2b: #6a6ae6;
+  --g3a: #7a2f72; --g3b: #e79a62;
+  --g4a: #0f6470; --g4b: #45b0d8;
+  --g5a: #3d2f8c; --g5b: #cf5f9a;
+  --g6a: #6e4f13; --g6b: #e6c670;
+  --g7a: #12456c; --g7b: #5fcdbb;
+  --g8a: #58244a; --g8b: #e9788a;
+  --art-fg: #fbf6ea;
+  --art-ink: #0a1628;
+
+  --hero-bg:
+    radial-gradient(60% 90% at 16% 0%, rgba(91, 91, 214, .16), transparent 60%),
+    radial-gradient(52% 80% at 88% 8%, rgba(200, 160, 69, .30), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(255, 252, 244, .9));
+  --hero-grad: linear-gradient(100deg, #76570e 10%, #a47b17 50%, #4a41c2 95%);
+
+  --shadow-sm: 0 1px 2px rgba(40, 30, 8, .10);
+  --shadow: 0 10px 30px rgba(40, 30, 8, .10);
+  --shadow-lg: 0 24px 60px rgba(20, 16, 6, .22);
+  --glow: 0 0 0 1px rgba(200, 160, 69, .5), 0 18px 44px -16px var(--tier-c, rgba(200, 160, 69, .7));
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #76570e;
+  --sb-thumb: #c8a045;
+  --sb-track: rgba(10, 22, 40, .08);
+  --chart-line: #a47b17;
+}
+
+/* ---------- 2. Tinh chỉnh riêng của Midnight Luxe ---------- */
+/* Chữ số KPI và từ nhấn trong hero phủ gradient gold */
+[data-style="luxe"] .hero-title em,
+[data-style="luxe"][data-theme="dark"] .profile-kpis .kpi-value,
+[data-style="luxe"][data-theme="dark"] .kpi-hero .kpi-value {
+  background: var(--hero-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+[data-style="luxe"][data-theme="dark"] .profile-kpis .kpi-value .pi,
+[data-style="luxe"][data-theme="dark"] .profile-kpis .kpi-value .ico { color: var(--text); }
+/* Viền gold mảnh ở trạng thái active */
+[data-style="luxe"] .tab[aria-selected="true"]::after { background: var(--nav-indicator); height: 2px; box-shadow: 0 0 12px var(--accent); }
+[data-style="luxe"] .chip[aria-pressed="true"], [data-style="luxe"] .chip.is-on { box-shadow: inset 0 0 0 1px var(--accent); border-color: var(--accent); }
+[data-style="luxe"] .segmented button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-sm); }
+/* Đường sáng mảnh phía trên panel kính */
+[data-style="luxe"] .card::after, [data-style="luxe"] .hero::after {
+  content: ""; position: absolute; left: 14%; right: 14%; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: .45;
+}
+[data-style="luxe"] .card { position: relative; }
+[data-style="luxe"] .brand img { box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(200, 160, 69, .45); }

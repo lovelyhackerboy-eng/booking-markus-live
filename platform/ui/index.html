@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="vi" data-style="luxe" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Markus Creator OS</title>
+  <link rel="icon" href="assets/markus-logo.png" />
+  <script>
+    // Đặt hướng visual + theme TRƯỚC khi vẽ để không nháy. Thứ tự ưu tiên: ?style=&theme= trên URL → localStorage → mặc định.
+    // Mỗi hướng có theme "gốc" riêng (luxe: tối, pop & bento: sáng). Danh sách này phải khớp STYLES trong app.js.
+    (function () {
+      var NATIVE = { luxe: "dark", pop: "light", bento: "light" };
+      var q = new URLSearchParams(location.search), ls = {};
+      try { ls = { style: localStorage.getItem("markus_proto_style"), theme: localStorage.getItem("markus_proto_theme") }; } catch (e) {}
+      var style = NATIVE[q.get("style")] ? q.get("style") : NATIVE[ls.style] ? ls.style : "luxe";
+      var theme = /^(light|dark)$/.test(q.get("theme")) ? q.get("theme") : q.get("style") ? NATIVE[style] : /^(light|dark)$/.test(ls.theme) ? ls.theme : NATIVE[style];
+      document.documentElement.setAttribute("data-style", style);
+      document.documentElement.setAttribute("data-theme", theme);
+      // ?motion=off: tắt mọi hiệu ứng (dùng cho chụp ảnh / kiểm thử tự động, nơi trình duyệt không vẽ khung hình liên tục)
+      if (q.get("motion") === "off") document.documentElement.classList.add("no-motion");
+    })();
+  </script>
+  <!-- Font: Be Vietnam Pro (đủ dấu tiếng Việt) + Playfair Display cho hướng Editorial. Mất mạng → rơi về font hệ thống (xem --font trong tokens.css). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800&display=swap" />
+  <!-- Thứ tự: token chung → token + tinh chỉnh từng hướng → component → khung → từng màn. Không build step. -->
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="styles/luxe.css" />
+  <link rel="stylesheet" href="styles/pop.css" />
+  <link rel="stylesheet" href="styles/bento.css" />
+  <link rel="stylesheet" href="components.css" />
+  <link rel="stylesheet" href="layout.css" />
+  <link rel="stylesheet" href="views.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Bỏ qua tới nội dung chính</a>
+
+  <div class="app" id="app">
+    <!-- Sidebar: nav sinh từ mảng NAV trong app.js -->
+    <aside class="sidebar" id="sidebar" aria-label="Điều hướng chính">
+      <a class="brand" href="#/kham-pha" title="Markus Creator OS">
+        <img src="assets/markus-logo.png" alt="" />
+        <span class="brand-text"><strong>Markus OS</strong><small>Creator Intelligence</small></span>
+      </a>
+      <nav class="nav" id="nav"></nav>
+      <div class="nav-foot">
+        <button class="nav-item" id="btn-nav-toggle" type="button" style="width:100%" aria-expanded="false"></button>
+      </div>
+    </aside>
+
+    <header class="topbar">
+      <a class="topbar-brand" href="#/kham-pha" aria-label="Markus Creator OS"><img src="assets/markus-logo.png" alt="" /></a>
+      <button class="ask" id="btn-ask" type="button" aria-label="Hỏi AI Copilot hoặc ra lệnh (Ctrl K)" aria-haspopup="dialog" aria-controls="copilot">
+        <span class="ico" id="ask-ico"></span>
+        <span class="ask-text">Hỏi AI hoặc ra lệnh…</span>
+        <span class="kbd">Ctrl K</span>
+      </button>
+      <span class="spacer"></span>
+      <div class="role-switch user-chip" id="user-chip">
+        <span id="role-ico"></span><span class="user-text"><strong id="user-name"></strong><small class="faint" id="user-role"></small></span>
+        <button class="btn btn-ghost btn-sm" id="btn-logout" type="button">Đăng xuất</button>
+      </div>
+      <button class="btn" id="btn-style" type="button" aria-haspopup="menu" aria-expanded="false" title="Đổi phong cách giao diện"></button>
+      <button class="btn btn-ghost btn-icon" id="btn-theme" type="button" aria-label="Đổi giao diện sáng/tối"></button>
+      <button class="btn" id="btn-feedback" type="button" aria-haspopup="dialog" title="Góp ý cho màn hình đang xem"></button>
+      <a class="btn btn-ghost btn-icon count-btn show-m" id="btn-data-m" href="#/du-lieu" aria-label="Dữ liệu & đồng bộ"></a>
+      <button class="btn count-btn hide-m" id="btn-shortlist" type="button" aria-haspopup="dialog">
+        <span class="ico" id="shortlist-ico"></span><span>Ứng viên</span><span class="count" id="shortlist-count">0</span>
+      </button>
+    </header>
+
+    <main id="main" tabindex="-1"></main>
+
+    <aside class="copilot" id="copilot" role="dialog" aria-label="AI Copilot" hidden></aside>
+
+    <nav class="bottom-nav" id="bottom-nav" aria-label="Điều hướng (di động)"></nav>
+  </div>
+
+  <div id="overlay-root"></div>
+  <div id="toasts" role="status" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

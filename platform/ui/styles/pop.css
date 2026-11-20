@@ -1,0 +1,206 @@
+/* ===========================================================
+   styles/pop.css — hướng "Creator Pop" (light-first).
+   Năng lượng creator economy: gradient mesh tím → hồng → cam, card bo lớn, màu theo nền tảng,
+   badge kiểu sticker, micro-animation nảy nhẹ.
+   Lưu ý tương phản: cam chỉ dùng trang trí / nền sticker có chữ đậm; chữ trên nút dùng dải tím → hồng đậm (đạt AA).
+   =========================================================== */
+
+/* ---------- 1a. Token — theme sáng (bản chính) ---------- */
+[data-style="pop"][data-theme="light"] {
+  --bg: #fbf7ff;
+  --page-bg:
+    radial-gradient(46% 42% at 0% 0%, #eadcff 0%, transparent 62%),
+    radial-gradient(40% 38% at 100% 0%, #ffdcec 0%, transparent 60%),
+    radial-gradient(46% 44% at 100% 100%, #ffe9d2 0%, transparent 62%),
+    radial-gradient(40% 40% at 0% 100%, #dff3ff 0%, transparent 60%),
+    #fbf7ff;
+  --bg-elev: #ffffff;
+  --bg-soft: #f4ecfe;
+  --bg-hover: #ecdffc;
+  --card-bg: #ffffff;
+  --card-border: #ebdffa;
+  --card-blur: none;
+  --card-shadow: 0 10px 34px rgba(112, 60, 220, .11);
+  --card-hi: inset 0 0 0 0 transparent;
+
+  --text: #1d1233;
+  --text-soft: #46385f;
+  --text-faint: #65587f;
+  --border: #ebdffa;
+  --border-strong: #cdb9ee;
+
+  --primary: #6d3be0;
+  --primary-hover: #5a2cc8;
+  --primary-soft: #efe5ff;
+  --primary-ink: #ffffff;
+  --btn-bg: linear-gradient(120deg, #6d3be0 0%, #b72bb0 55%, #d6336c 100%);
+  --btn-ink: #ffffff;
+  --btn-shadow: 0 10px 24px rgba(183, 43, 176, .32);
+  --accent: #ffb224;
+  --accent-ink: #1d1233;
+  --accent-soft: #fff1cf;
+
+  --ai: #b3247a;
+  --ai-soft: #ffe7f3;
+  --ai-border: #f6b4d6;
+  --ai-grad: linear-gradient(120deg, #6d3be0, #e2478a, #ff8a3d);
+
+  --nav-bg: linear-gradient(180deg, #ffffff, #fbf5ff);
+  --nav-line: #ebdffa;
+  --nav-text: #46385f;
+  --nav-text-strong: #1d1233;
+  --nav-hover: #f4ecfe;
+  --nav-active-bg: linear-gradient(120deg, #6d3be0, #b72bb0 60%, #d6336c);
+  --nav-active-ink: #ffffff;
+  --nav-indicator: linear-gradient(180deg, #ffb224, #ff7a3d);
+  --nav-accent: #b3247a;
+
+  --tier-nano: #5d5376;  --tier-nano-2: #c9bfe0;
+  --tier-micro: #0b6aa8; --tier-micro-2: #35d0e6;
+  --tier-mid: #6d3be0;   --tier-mid-2: #e2478a;
+  --tier-macro: #a34a00; --tier-macro-2: #ffb224;
+  --tier-mega: #c21d5c;  --tier-mega-2: #ff8a3d;
+
+  --g1a: #7a3cf0; --g1b: #ff5fa2;
+  --g2a: #ff5fa2; --g2b: #ff9a3d;
+  --g3a: #2f7bff; --g3b: #37d6c4;
+  --g4a: #ff7a3d; --g4b: #ffc63d;
+  --g5a: #b72bb0; --g5b: #6d3be0;
+  --g6a: #12b886; --g6b: #74d14c;
+  --g7a: #e2478a; --g7b: #7a3cf0;
+  --g8a: #2aa6ff; --g8b: #7a3cf0;
+  --art-fg: #fff6ec;
+  --art-ink: #2a1650;
+
+  --hero-bg:
+    radial-gradient(50% 90% at 8% 0%, #e2d0ff 0%, transparent 62%),
+    radial-gradient(46% 80% at 60% -10%, #ffd0e6 0%, transparent 60%),
+    radial-gradient(44% 90% at 100% 20%, #ffe2c2 0%, transparent 62%),
+    #ffffff;
+  --hero-grad: linear-gradient(100deg, #6d3be0 5%, #b72bb0 50%, #d6336c 95%);
+
+  --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-card: 26px; --btn-radius: 999px;
+  --ease-ui: var(--ease-bounce);
+  --shadow-sm: 0 2px 6px rgba(112, 60, 220, .10);
+  --shadow: 0 12px 34px rgba(112, 60, 220, .14);
+  --shadow-lg: 0 26px 70px rgba(70, 30, 150, .26);
+  --glow: 0 18px 46px -14px var(--tier-c, #b72bb0);
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 5px #6d3be0;
+  --sb-thumb: #b99cf2;
+  --sb-track: rgba(109, 59, 224, .08);
+  --chart-line: #b72bb0;
+}
+
+/* ---------- 1b. Token — theme tối: tím đêm + neon ---------- */
+[data-style="pop"][data-theme="dark"] {
+  --bg: #140a24;
+  --page-bg:
+    radial-gradient(46% 42% at 0% 0%, rgba(125, 70, 255, .34), transparent 62%),
+    radial-gradient(40% 38% at 100% 0%, rgba(255, 80, 150, .22), transparent 60%),
+    radial-gradient(46% 44% at 100% 100%, rgba(255, 138, 61, .14), transparent 62%),
+    #140a24;
+  --bg-elev: #201336;
+  --bg-soft: #2b1a48;
+  --bg-hover: #36225b;
+  --card-bg: #1f1235;
+  --card-border: #38245e;
+  --card-blur: none;
+  --card-shadow: 0 14px 40px rgba(0, 0, 0, .4);
+  --card-hi: inset 0 1px 0 rgba(255, 255, 255, .05);
+
+  --text: #f7f1ff;
+  --text-soft: #cdc0ea;
+  --text-faint: #a79ac8;
+  --border: #38245e;
+  --border-strong: #55398a;
+
+  --primary: #bca2ff;
+  --primary-hover: #d2bfff;
+  --primary-soft: rgba(155, 109, 255, .2);
+  --primary-ink: #140a24;
+  --btn-bg: linear-gradient(120deg, #a47bff 0%, #f06ab0 60%, #ff8f6b 100%);
+  --btn-ink: #160a26;
+  --btn-shadow: 0 10px 26px rgba(240, 106, 176, .3);
+  --accent: #ffc145;
+  --accent-ink: #1d1233;
+  --accent-soft: rgba(255, 193, 69, .16);
+
+  --ai: #ff9fcf;
+  --ai-soft: rgba(255, 95, 162, .18);
+  --ai-border: rgba(255, 130, 185, .45);
+  --ai-grad: linear-gradient(120deg, #a47bff, #ff6fb1, #ff9a5a);
+
+  --nav-bg: linear-gradient(180deg, #1a0d2e, #140a24);
+  --nav-line: #38245e;
+  --nav-text: #b7a9d9;
+  --nav-text-strong: #ffffff;
+  --nav-hover: rgba(255, 255, 255, .07);
+  --nav-active-bg: linear-gradient(120deg, #a47bff, #f06ab0 70%, #ff8f6b);
+  --nav-active-ink: #160a26;
+  --nav-indicator: linear-gradient(180deg, #ffc145, #ff8f6b);
+  --nav-accent: #ff9fcf;
+
+  --tier-nano: #b7a9d9;  --tier-nano-2: #6b5a94;
+  --tier-micro: #6fd6f2; --tier-micro-2: #2f7bff;
+  --tier-mid: #bca2ff;   --tier-mid-2: #f06ab0;
+  --tier-macro: #ffc145; --tier-macro-2: #ff8f6b;
+  --tier-mega: #ff8fb8;  --tier-mega-2: #ffc145;
+
+  --g1a: #7a3cf0; --g1b: #ff5fa2;
+  --g2a: #ff5fa2; --g2b: #ff9a3d;
+  --g3a: #2f7bff; --g3b: #37d6c4;
+  --g4a: #ff7a3d; --g4b: #ffc63d;
+  --g5a: #b72bb0; --g5b: #6d3be0;
+  --g6a: #0fa37a; --g6b: #74d14c;
+  --g7a: #e2478a; --g7b: #7a3cf0;
+  --g8a: #2aa6ff; --g8b: #7a3cf0;
+  --art-fg: #fff6ec;
+  --art-ink: #2a1650;
+
+  --hero-bg:
+    radial-gradient(50% 90% at 8% 0%, rgba(125, 70, 255, .5), transparent 62%),
+    radial-gradient(46% 80% at 60% -10%, rgba(255, 80, 150, .32), transparent 60%),
+    radial-gradient(44% 90% at 100% 20%, rgba(255, 138, 61, .24), transparent 62%),
+    #1f1235;
+  --hero-grad: linear-gradient(100deg, #bca2ff 5%, #ff8fc4 50%, #ffb07a 95%);
+
+  --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-card: 26px; --btn-radius: 999px;
+  --ease-ui: var(--ease-bounce);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, .4);
+  --shadow: 0 12px 34px rgba(0, 0, 0, .42);
+  --shadow-lg: 0 26px 70px rgba(0, 0, 0, .6);
+  --glow: 0 18px 50px -14px var(--tier-c, #f06ab0);
+  --focus-ring: 0 0 0 2px #140a24, 0 0 0 5px #bca2ff;
+  --sb-thumb: #7a55c8;
+  --sb-track: rgba(255, 255, 255, .06);
+  --chart-line: #ff8fc4;
+}
+
+/* ---------- 2. Tinh chỉnh riêng của Creator Pop ---------- */
+[data-style="pop"] .hero-title em { background: var(--hero-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Badge kiểu sticker: viền đậm, hơi nghiêng, nảy khi rê chuột */
+[data-style="pop"] .badge { border-radius: 10px; font-weight: 700; }
+[data-style="pop"] .tier, [data-style="pop"] .res-name .badge, [data-style="pop"] .profile-badges .badge {
+  border: 2px solid currentColor; background: var(--bg-elev); box-shadow: 2px 2px 0 currentColor; transform: rotate(-2deg);
+  transition: transform var(--dur) var(--ease-bounce);
+}
+[data-style="pop"] .res-name .badge:nth-of-type(even), [data-style="pop"] .profile-badges .badge:nth-of-type(even) { transform: rotate(1.500deg); }
+[data-style="pop"] .res:hover .res-name .badge, [data-style="pop"] .profile-badges .badge:hover { transform: rotate(0) scale(1.06); }
+[data-style="pop"] .thumb-tag { background: var(--accent); color: var(--accent-ink); transform: rotate(-3deg); box-shadow: 2px 2px 0 var(--art-ink); }
+/* Nút và chip nảy nhẹ */
+[data-style="pop"] .btn:hover { transform: translateY(-2px) scale(1.02); }
+[data-style="pop"] .btn:active { transform: scale(.95); }
+[data-style="pop"] .chip:hover, [data-style="pop"] .hero-chip:hover { transform: translateY(-2px) rotate(-1deg); }
+[data-style="pop"] .lift:hover { transform: translateY(-5px) scale(1.006); }
+[data-style="pop"] .kpi { border-width: 2px; }
+[data-style="pop"] .chip { border-width: 1.500px; }
+/* Mỗi chỉ số trong thẻ kết quả có một ô màu nhạt riêng */
+[data-style="pop"] .res-stats { border: 0; gap: var(--sp-2); padding: 0; }
+[data-style="pop"] .res-stats .stat { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--bg-soft); }
+[data-style="pop"] .res-stats .stat:nth-of-type(2) { background: var(--ai-soft); }
+[data-style="pop"] .res-stats .stat:nth-of-type(4) { background: var(--accent-soft); }
+[data-style="pop"] .res-stats .stat:nth-of-type(5) { background: var(--success-soft); }
+@media (max-width: 760px) { [data-style="pop"] .res-stats .stat { padding: 6px var(--sp-2); } }
+[data-style="pop"] .nav-item[aria-current="page"] { box-shadow: 0 8px 20px rgba(183, 43, 176, .3); }
+[data-style="pop"] .dock { background: var(--btn-bg); color: var(--btn-ink); border: 0; }
+[data-style="pop"] .hero { border-width: 2px; }

@@ -1,0 +1,1 @@
+ALTER TABLE `notes` ADD `campaign_id` varchar(40);

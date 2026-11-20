@@ -1,0 +1,106 @@
+/* ===========================================================
+   tokens.css — token DÙNG CHUNG cho mọi hướng visual (thang đo, font, kích thước khung, màu thương hiệu nền tảng).
+   MÀU của từng hướng nằm ở styles/<ten-huong>.css dưới selector [data-style="..."][data-theme="..."].
+   Các file CSS khác KHÔNG hard-code màu.
+
+   <html data-style="luxe | pop | bento" data-theme="light | dark">  ← đặt bởi script đầu index.html
+
+   Hợp đồng token mà MỖI hướng phải khai báo (xem styles/luxe.css làm mẫu):
+     nền        --bg --page-bg --bg-elev --bg-soft --bg-hover --scrim
+     thẻ        --card-bg --card-border --card-blur --card-shadow --card-hi
+     chữ        --text --text-soft --text-faint
+     viền       --border --border-strong
+     chính      --primary --primary-hover --primary-soft --primary-ink   (màu tương tác: link, tab, chip bật)
+     nút chính  --btn-bg --btn-ink --btn-shadow
+     nhấn       --accent --accent-ink --accent-soft                       (điểm nhấn trang trí / chỉ báo)
+     AI         --ai --ai-soft --ai-border --ai-grad
+     trạng thái --success/-ink/-soft  --warning/…  --danger/…  --info/…
+     sidebar    --nav-bg --nav-line --nav-text --nav-text-strong --nav-hover --nav-active-bg --nav-active-ink --nav-indicator --nav-accent
+     tier       --tier-nano … --tier-mega (chữ, đạt AA) và --tier-*-2 (màu thứ hai của vòng gradient)
+     minh hoạ   --g1a/--g1b … --g8a/--g8b (gradient avatar, thumbnail, cover) --art-fg --art-ink --thumb-ink --thumb-shade
+     hero       --hero-bg --hero-grad (gradient chữ nhấn)
+     hình khối  --r-sm --r-md --r-lg --r-card --r-pill --btn-radius
+     chữ lớn    --font-display --display-weight --display-tracking --fs-display --fs-kpi
+     bóng       --shadow-sm --shadow --shadow-lg --glow --focus-ring
+     khác       --sb-thumb --sb-track --ease-ui --chart-line
+   =========================================================== */
+
+:root {
+  /* --- Font: Be Vietnam Pro (Google Fonts, đủ dấu tiếng Việt) + fallback hệ thống --- */
+  --font: "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-display: var(--font);
+
+  /* --- Spacing scale (bội số 4) --- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+
+  /* --- Type scale --- */
+  --fs-xs: 12px;  --fs-sm: 13px;  --fs-md: 14px;
+  --fs-lg: 16px;  --fs-xl: 20px;  --fs-2xl: 24px; --fs-3xl: 30px;
+  --fs-display: clamp(34px, 4.6vw, 54px);   /* tiêu đề hero */
+  --fs-kpi: clamp(26px, 2.6vw, 38px);       /* số KPI lớn */
+  --display-weight: 800;
+  --display-tracking: -.03em;
+  --lh-tight: 1.2; --lh: 1.55;
+  --fw-normal: 400; --fw-medium: 600; --fw-bold: 700;
+
+  /* --- Hình khối mặc định (mỗi hướng có thể ghi đè) --- */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-card: 18px; --r-pill: 999px; --btn-radius: 12px;
+
+  /* --- Chuyển động --- */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --ease-bounce: cubic-bezier(.34, 1.56, .64, 1);
+  --ease-ui: var(--ease);
+  --dur: .18s;
+  --dur-slow: .36s;
+
+  /* --- Lớp --- */
+  --z-nav: 20; --z-overlay: 40; --z-toast: 60;
+
+  /* --- Kích thước khung --- */
+  --rail-w: 92px;          /* sidebar thu gọn (icon + nhãn nhỏ) */
+  --rail-w-open: 240px;    /* sidebar mở rộng */
+  --topbar-h: 60px;
+  --bottomnav-h: 64px;
+  --copilot-w: 380px;
+  --control-h: 38px;
+  --tap: 44px;
+
+  /* --- Màu thương hiệu nền tảng: HẰNG SỐ, không hướng / theme nào được đổi (trừ ô nền TikTok & Threads đảo đen ↔ trắng) --- */
+  /* Badge số kiểu iOS (đỏ, chữ trắng) — hằng số, giống nhau ở mọi phong cách */
+  --badge-bg: #d92d20; --badge-ink: #ffffff;
+  --brand-white: #ffffff;
+  --brand-black: #000000;
+  --brand-youtube: #ff0000;
+  --brand-facebook: #0866ff;
+  --brand-zalo: #0068ff;
+  --brand-tiktok-cyan: #25f4ee;
+  --brand-tiktok-red: #fe2c55;
+  --brand-ig-1: #ffd600; --brand-ig-2: #ff7a00; --brand-ig-3: #ff0069; --brand-ig-4: #d300c5; --brand-ig-5: #7638fa;
+  --brand-tiktok-tile: var(--brand-black); --brand-tiktok-glyph: var(--brand-white);
+  --brand-threads-tile: var(--brand-black); --brand-threads-glyph: var(--brand-white);
+}
+/* Trên nền tối, ô đen của TikTok / Threads sẽ chìm → đảo thành ô trắng, glyph đen (đúng bản logo âm bản chính thức) */
+[data-theme="dark"] {
+  --brand-tiktok-tile: var(--brand-white); --brand-tiktok-glyph: var(--brand-black);
+  --brand-threads-tile: var(--brand-white); --brand-threads-glyph: var(--brand-black);
+}
+
+/* --- Màu trạng thái dùng chung theo theme (hướng nào cần khác thì ghi đè) --- */
+[data-theme="light"] {
+  --success: #1f9d63;  --success-ink: #166f45;  --success-soft: #dff5ea;
+  --warning: #c8890b;  --warning-ink: #7d5400;  --warning-soft: #fbefd3;
+  --danger:  #d64550;  --danger-ink:  #ad2a35;  --danger-soft:  #fbe3e5;
+  --info:    #2a7fb8;  --info-ink:    #1b5f8d;  --info-soft:    #dfeef8;
+  --thumb-ink: #ffffff; --thumb-shade: rgba(8, 14, 28, .72);
+  --scrim: rgba(10, 16, 32, .5);
+}
+[data-theme="dark"] {
+  --success: #4ecb8a;  --success-ink: #6ddba0;  --success-soft: rgba(78, 203, 138, .16);
+  --warning: #e6b34d;  --warning-ink: #f0c670;  --warning-soft: rgba(230, 179, 77, .16);
+  --danger:  #f0737d;  --danger-ink:  #ff97a0;  --danger-soft:  rgba(240, 115, 125, .16);
+  --info:    #5eb2e0;  --info-ink:    #86c9ee;  --info-soft:    rgba(94, 178, 224, .16);
+  --thumb-ink: #ffffff; --thumb-shade: rgba(4, 8, 18, .78);
+  --scrim: rgba(2, 5, 12, .66);
+}

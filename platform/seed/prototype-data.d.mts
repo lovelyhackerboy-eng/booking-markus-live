@@ -1,0 +1,67 @@
+// Types for the fields of the prototype mock data that the seed reads (the data file itself is plain JS).
+export type MockMetric = { value: number; source: string; updatedAt: string; verify: string };
+export type MockCreator = {
+  id: string;
+  name: string;
+  alias: string;
+  handle: string;
+  yob: number;
+  gender: string;
+  job: string;
+  region: string;
+  type: string;
+  categories: string[];
+  hero: "tiktok" | "facebook" | "instagram" | "youtube" | "threads";
+  tier: string;
+  rep: "self" | "company";
+  companyId: string;
+  channels: Record<string, { url: string; handle: string; followers: MockMetric }>;
+  rates: { platform: string; sow: string; amount: number; updatedAt: string; source: string }[];
+  terms: { usage: string; excl: string; cond: string };
+  rel: {
+    status: string;
+    owner: string;
+    via: string;
+    manager?: string;
+    resp: string;
+    nego: string;
+    channel: string;
+    contact: { person: string; phone: string; email: string; zalo: string };
+  };
+  notes: { at: string; by: string; text: string; kind: string }[];
+  lastSynced: string;
+  createdAt: string;
+};
+export type MockBooking = {
+  id: string;
+  creatorId: string;
+  brand: string;
+  campaign: string;
+  listId: string | null;
+  platform: string;
+  sow: string;
+  quoted: number;
+  closed: number;
+  date: string;
+  status: string;
+  deadline: string;
+  owner: string;
+  contract: string;
+  contentUrl: string;
+  perf: { views: number; er: number } | null;
+  evaluation: { score: number; note: string } | null;
+};
+export type MockList = {
+  id: string;
+  name: string;
+  brand: string;
+  owner: string;
+  members: string[];
+  kpiViews: number;
+  entries: { id: string; stage: string; addedAt: string }[];
+};
+export const CREATORS: MockCreator[];
+export const BOOKINGS: MockBooking[];
+export const LISTS: MockList[];
+export const SHORTLIST_SEED: Record<string, { id: string; rateIdx: number }[]>;
+export const COMPANIES: Record<string, { id: string; name: string; kind: string; person: string; phone: string; email: string }>;
