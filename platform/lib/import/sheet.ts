@@ -32,6 +32,7 @@ export const COLUMNS = {
   creatorType: "creatortype",
   castingProfile: "castingprofile",
   yearOfBirth: "yearofbirth",
+  age: "age",
   baseLocation: "baselocation",
   ageBand: "ageband",
   representation: "representation",
@@ -156,6 +157,11 @@ const yob = (raw: unknown): number | null => {
   const n = Number(String(raw ?? "").trim());
   return Number.isInteger(n) && n >= 1930 && n <= 2020 ? n : null;
 };
+// Year_Of_Birth is mostly empty on the Sheet while Age is filled: derive the year from Age (as of the import year).
+const yobFromAge = (raw: unknown, now = new Date()): number | null => {
+  const a = Number(String(raw ?? "").trim());
+  return Number.isInteger(a) && a >= 10 && a <= 90 ? now.getFullYear() - a : null;
+};
 
 export type CreatorRecord = {
   id: string;
@@ -241,7 +247,7 @@ export function buildRecords(p: SheetPayload): BuildResult {
         secondaryCategory: clean(cell(row, "secondaryCategory"), 80),
         creatorType: clean(cell(row, "creatorType"), 80),
         castingProfile: clean(cell(row, "castingProfile")),
-        yearOfBirth: yob(cell(row, "yearOfBirth")),
+        yearOfBirth: yob(cell(row, "yearOfBirth")) ?? yobFromAge(cell(row, "age")),
         ageBand: clean(cell(row, "ageBand"), 20),
         baseLocation: clean(cell(row, "baseLocation"), 120),
         representation: clean(cell(row, "representation")),

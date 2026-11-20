@@ -11,6 +11,7 @@
 // Kết quả có 2 kiểu xem: "Thẻ" (có dải nội dung gần đây + avatar brand) và "Bảng gọn" (quét nhanh nhiều dòng).
 
 import { redacted } from "../core/parts.js";
+import { api } from "../data/live.js";
 import { $, $$, esc, icon, delegate, openOverlay, toast, fmtNum, fmtPct, relTime } from "../core/ui.js";
 import { state, can, filterCtx, setFilters, setPref, getCreator, inShortlist, toggleShortlist, pendingOf, activeList, campaignHash, FEATURES } from "../core/store.js";
 import { LAYERS, FILTER_DEFS, emptyFilters, chipsOf, removeChip, activeCount, rateFor, SOW_KINDS, metricCh, metricPlatform, focusPlatform, totalFollowers, platRange } from "../core/filters.js";
@@ -24,13 +25,14 @@ import { openLookalike } from "./lookalike.js";
 import { openSaveMenu, saveLabel } from "./lists.js";
 
 const EXAMPLES = [
-  "Mommy creator Hà Nội, Micro/Mid-tier, có con nhỏ, mạnh TikTok, từng làm FMCG, dưới 30tr/video",
-  "Beauty blogger TP.HCM trên 100k follower, ER trên 5%, chưa làm đối thủ của Innisfree",
-  "Reviewer công nghệ cho campaign Samsung, làm việc tốt",
-  "KOC nữ Gen Z livestream dưới 10 triệu",
+  "Mẹ & bé ở Hà Nội, tier Micro hoặc Mid-tier",
+  "Beauty TP.HCM trên 100K follower",
+  "Review đồ ăn Sài Gòn mạnh TikTok, dưới 15 triệu",
+  "Ca sĩ, nghệ sĩ mạnh TikTok trên 100K follower",
+  "Lifestyle vlog có YouTube",
 ];
 // Nhãn chip câu mẫu: viết gọn nhưng đủ nghĩa (không cắt bằng "…"); câu đầy đủ nằm trong title và được điền vào ô tìm kiếm.
-const EXAMPLE_LABELS = ["Mommy Hà Nội · Micro/Mid-tier", "Beauty TP.HCM · trên 100K follower", "Reviewer công nghệ cho Samsung", "KOC Gen Z livestream"];
+const EXAMPLE_LABELS = ["Mẹ & bé Hà Nội · Micro/Mid-tier", "Beauty TP.HCM · trên 100K follower", "Review đồ ăn Sài Gòn · TikTok", "Ca sĩ, nghệ sĩ · TikTok 100K+", "Lifestyle vlog · YouTube"];
 /* Sắp xếp = TIÊU CHÍ (ô chọn) + CHIỀU (nút bên cạnh, state.sortDir "desc" | "asc").
    key(c) trả về số để so; null = không có dữ liệu → luôn xếp cuối, dù chiều nào.
    dir = chiều mặc định khi vừa chọn tiêu chí; then = tiêu chí phụ khi bằng nhau (cùng chiều).
@@ -77,7 +79,7 @@ export function render(el, params = {}) {
   // Deep link: #/kham-pha?q=... → chạy AI search ngay (không qua skeleton) để link chia sẻ ra đúng kết quả.
   if (params.q && state.ai?.query !== params.q) {
     const r = parseQuery(params.q, { allowPrice: can("price") });
-    state.filters = r.patch; state.ai = { query: params.q, leftover: r.leftover, priceSkipped: r.priceSkipped }; state.sort = "match";
+    state.filters = r.patch; state.ai = { query: params.q, leftover: r.leftover, unsupported: r.unsupported, priceSkipped: r.priceSkipped }; state.sort = "match";
   }
   // Deep link từ nhãn công ty quản lý: #/kham-pha?company=CO-001 → mọi KOL của công ty đó.
   if (params.company && COMPANIES[params.company] && state.filters.company !== params.company) {
@@ -191,12 +193,26 @@ function runQuery(text) {
   $("#nl-form", root).classList.add("is-thinking");
   $("#understood", root).innerHTML = `<div class="understood card"><span class="badge badge-ai"><span class="thinking" aria-hidden="true"><i></i><i></i><i></i></span> AI đang đọc brief…</span><span class="skeleton" style="width:120px;height:26px"></span><span class="skeleton" style="width:90px;height:26px"></span><span class="skeleton" style="width:150px;height:26px"></span></div>`;
   $("#results", root).innerHTML = skeletonHtml();
-  aiTimer = setTimeout(() => {
-    const r = parseQuery(text, { allowPrice: can("price") });
+  const seq = (aiTimer = Symbol("ai"));
+  const apply = (r, engine) => {
+    if (aiTimer !== seq) return; // người dùng đã gõ câu khác
     state.sort = "match";
     if (root && document.contains(root)) { $("#sort", root).value = "match"; $("#sort-dir-wrap", root).innerHTML = sortDirBtn(); }
-    setFilters(r.patch, { query: text, leftover: r.leftover, priceSkipped: r.priceSkipped });
-  }, 420);
+    setFilters(r.patch, { query: text, leftover: r.leftover || [], unsupported: r.unsupported || [], priceSkipped: r.priceSkipped, engine });
+  };
+  const rules = () => parseQuery(text, { allowPrice: can("price") });
+  if (!FEATURES.aiSearch) return void setTimeout(() => apply(rules(), "rules"), 300);
+  // DeepSeek đọc câu (server kiểm giá trị); quá 12 giây hoặc lỗi → bộ đọc theo luật, kết quả vẫn ra.
+  Promise.race([api("/ai/search", { method: "POST", body: { query: text } }), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 12000))])
+    .then((r) => {
+      const patch = emptyFilters();
+      for (const k of ["categories", "regions", "tiers", "heroes", "platforms", "relStatus"]) if (Array.isArray(r.patch[k])) patch[k] = r.patch[k];
+      for (const k of ["followersMin", "followersMax", "rateMin", "rateMax"]) if (r.patch[k] != null) patch[k] = String(r.patch[k]);
+      if (r.patch.rateSow) patch.rateSow = r.patch.rateSow;
+      if (r.patch.q) patch.q = r.patch.q;
+      apply({ patch, unsupported: r.unsupported, priceSkipped: r.priceSkipped }, "deepseek");
+    })
+    .catch(() => apply(rules(), "rules"));
 }
 const skeletonHtml = () => `<div class="stack" aria-busy="true" aria-label="Đang tải kết quả">${[0, 1, 2].map(() => `<div class="card res"><div class="row"><span class="skeleton" style="width:44px;height:44px;border-radius:50%"></span><div style="flex:1"><div class="skeleton" style="width:40%;height:14px;margin-bottom:8px"></div><div class="skeleton" style="width:60%;height:12px"></div></div></div><div class="thumbs">${[0, 1, 2, 3].map(() => `<span class="skeleton" style="height:124px"></span>`).join("")}</div></div>`).join("")}</div>`;
 
@@ -216,6 +232,8 @@ function drawUnderstood() {
       <button class="btn btn-ghost btn-sm" type="button" data-clear>Xoá hết</button>
     </div>
     ${ai?.leftover?.length ? `<p class="understood-note">${icon("alert", 14)} AI chưa hiểu: <strong>“${esc(ai.leftover.join(" "))}”</strong> — phần này chưa được lọc. <button class="link" type="button" data-edit-layer="persona">Thêm bằng bộ lọc</button></p>` : ""}
+    ${ai?.engine === "rules" && FEATURES.aiSearch ? `<p class="understood-note faint">${icon("clock", 14)} AI đang bận — đã dùng bộ đọc nhanh theo từ khoá.</p>` : ""}
+    ${ai?.unsupported?.length ? `<p class="understood-note">${icon("alert", 14)} Chưa lọc được: <strong>${esc(ai.unsupported.join(", "))}</strong> — dữ liệu hiện có chưa có thông tin này.</p>` : ""}
     ${ai?.priceSkipped ? `<p class="understood-note">${icon("lock", 14)} Đã bỏ qua tiêu chí giá: vai trò Viewer không xem được giá.</p>` : ""}`;
 }
 

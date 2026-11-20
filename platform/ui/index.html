@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi" data-style="luxe" data-theme="dark">
+<html lang="vi" data-style="pop" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -12,7 +12,7 @@
       var NATIVE = { luxe: "dark", pop: "light", bento: "light" };
       var q = new URLSearchParams(location.search), ls = {};
       try { ls = { style: localStorage.getItem("markus_proto_style"), theme: localStorage.getItem("markus_proto_theme") }; } catch (e) {}
-      var style = NATIVE[q.get("style")] ? q.get("style") : NATIVE[ls.style] ? ls.style : "luxe";
+      var style = NATIVE[q.get("style")] ? q.get("style") : NATIVE[ls.style] ? ls.style : "pop"; // mặc định: Creator Pop
       var theme = /^(light|dark)$/.test(q.get("theme")) ? q.get("theme") : q.get("style") ? NATIVE[style] : /^(light|dark)$/.test(ls.theme) ? ls.theme : NATIVE[style];
       document.documentElement.setAttribute("data-style", style);
       document.documentElement.setAttribute("data-theme", theme);

@@ -46,6 +46,14 @@ export function setOptionsFromData(creators) {
   CREATOR_TYPES.splice(0, CREATOR_TYPES.length, ...top(creators.map((c) => c.type)));
   CATEGORIES.splice(0, CATEGORIES.length, ...top(creators.flatMap((c) => c.categories)));
   REGIONS.splice(0, REGIONS.length, ...top(creators.map((c) => c.region)).slice(0, 30));
+  // Bộ lọc chỉ hiện khi dữ liệu thật có thông tin đó (vd. cột Age / Year_Of_Birth trên Sheet đang trống → ẩn bộ lọc Tuổi).
+  const needs = { age: (c) => c.age != null };
+  Object.entries(needs).forEach(([key, has]) => {
+    const i = FILTER_DEFS.findIndex((def) => def.key === key);
+    const want = creators.some(has);
+    if (i >= 0 && !want) FILTER_DEFS.splice(i, 1);
+    if (i < 0 && want) { const def = ALL_FILTER_DEFS.find((x) => x.key === key); if (def) FILTER_DEFS.splice(ALL_FILTER_DEFS.indexOf(def), 0, def); }
+  });
 }
 export const FORMATS = ["Video ngắn", "Video dài", "Reel", "Bài đăng ảnh", "Bài viết", "Livestream", "Review", "Vlog", "Sự kiện"];
 export const AUDIENCE_TAGS = ["Mẹ bỉm", "Người nội trợ", "Gen Z", "Nữ 18-24", "Nữ 25-34", "Nam 18-34", "Dân văn phòng", "Học sinh – sinh viên"];

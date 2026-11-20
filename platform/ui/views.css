@@ -375,3 +375,15 @@ a.chan-item:hover .num { text-decoration: underline; }
 .row-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; padding-left: 52px; }
 .row-acts .badge { white-space: normal; }
 @media (max-width: 760px) { .row-acts { padding-left: 0; } }
+
+/* ---------- Trợ lý AI campaign (views/assistant.js) ---------- */
+.ai-chat { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 260px); overflow-y: auto; padding: 4px 2px 8px; }
+.ai-msg { padding: 10px 12px; border-radius: var(--radius-md, 12px); line-height: 1.5; max-width: 92%; overflow-wrap: anywhere; }
+.ai-user { align-self: flex-end; background: var(--primary-soft, rgba(99, 102, 241, .12)); }
+.ai-bot { align-self: flex-start; background: var(--surface-2, rgba(127, 127, 127, .08)); }
+.ai-starters { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-props { display: grid; gap: 8px; margin-top: 10px; }
+.ai-prop { display: flex; gap: 8px; align-items: flex-start; }
+.ai-prop input { margin-top: 4px; }
+.ai-input { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px; }
+.ai-input textarea { flex: 1; resize: vertical; min-height: 44px; }

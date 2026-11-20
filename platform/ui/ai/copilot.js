@@ -182,7 +182,7 @@ export function briefToFilters(text) {
     <p style="margin-top:8px"><strong>${rec.matches.length}</strong> creator khớp hoàn toàn${rec.near.length ? `, ${rec.near.length} gần khớp` : ""}.</p>
     ${top.length ? `<div class="msg-people">${top.map((m) => `<a class="msg-person" href="#/creator/${m.c.id}">${avatar(m.c, "sm")}<span><strong>${esc(m.c.name)}</strong><small>Phù hợp ${m.score}/100${m.plus[0] ? ` · ${esc(m.plus[0])}` : ""}</small></span></a>`).join("")}</div>` : ""}`,
     [
-      { label: "Áp dụng vào Khám phá", primary: true, repeat: true, run: () => { setFilters(r.patch, { query: text, leftover: r.leftover, priceSkipped: r.priceSkipped }); location.hash = "#/kham-pha"; closeIfOverlay(); } },
+      { label: "Áp dụng vào Khám phá", primary: true, repeat: true, run: () => { setFilters(r.patch, { query: text, leftover: r.leftover, unsupported: r.unsupported, priceSkipped: r.priceSkipped }); location.hash = "#/kham-pha"; closeIfOverlay(); } },
       ...(top.length ? [{ label: `Thêm top ${top.length} vào shortlist`, run: () => { top.forEach((m) => toggleShortlist(m.c.id, true)); toast("Đã thêm vào shortlist", top.map((m) => m.c.name).join(", ")); } }] : []),
     ]);
 }

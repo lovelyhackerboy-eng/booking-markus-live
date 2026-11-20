@@ -7,6 +7,7 @@ import { $, $$, esc, icon, openMenu } from "./core/ui.js";
 import { state, can, on, setNavOpen, ROLES, activeList, campaignHash, canSeeBooking, applySnapshot, FEATURES } from "./core/store.js";
 import { loadSession, loadSnapshot, logout } from "./data/live.js";
 import { renderLogin } from "./views/login.js";
+import { openAssistant } from "./views/assistant.js";
 import { route, start, refresh, current } from "./core/router.js";
 import { initCopilot, openCopilot, refreshContext, resetCopilot } from "./ai/copilot.js";
 import * as discovery from "./views/discovery.js";
@@ -76,8 +77,8 @@ function drawNav() {
 /* ---------- Phong cách (hướng visual) + theme sáng/tối ----------
    Chỉ đổi 2 thuộc tính trên <html>; toàn bộ giao diện đổi theo token, KHÔNG vẽ lại DOM. */
 const STYLES = [
+  { id: "pop", label: "Creator Pop", hint: "Gradient tươi, bo lớn, sticker", theme: "light" }, // mặc định
   { id: "luxe", label: "Midnight Luxe", hint: "Navy + gold, panel kính", theme: "dark" },
-  { id: "pop", label: "Creator Pop", hint: "Gradient tươi, bo lớn, sticker", theme: "light" },
   { id: "bento", label: "Editorial Bento", hint: "Tạp chí, chữ số cực lớn", theme: "light" },
 ];
 const html = document.documentElement;
@@ -112,7 +113,7 @@ $("#btn-theme").addEventListener("click", () => setTheme(html.dataset.theme === 
 $("#ask-ico").innerHTML = icon("sparkles", { size: 18, variant: "fill" });
 $("#shortlist-ico").innerHTML = icon("list", 18);
 $("#role-ico").innerHTML = icon("person", 20);
-$("#btn-ask").addEventListener("click", () => openCopilot());
+$("#btn-ask").addEventListener("click", () => (FEATURES.copilot ? openCopilot() : openAssistant(activeList())));
 $("#btn-shortlist").addEventListener("click", () => shortlist.openShortlistDrawer());
 initFeedback($("#btn-feedback"));
 $("#btn-nav-toggle").addEventListener("click", () => { setNavOpen(!state.navOpen); drawNav(); });
@@ -124,11 +125,11 @@ function drawUser() {
   $("#user-chip").title = u ? `${u.email} · vai trò ${ROLES[u.role].label} (theo tab Employees)` : "";
 }
 $("#btn-logout").addEventListener("click", async () => { await logout(); location.reload(); });
-$("#btn-ask").hidden = !FEATURES.copilot;
+$("#btn-ask").hidden = !(FEATURES.copilot || FEATURES.aiAgent);
 
 // Ngữ cảnh copilot = view hiện tại tự khai báo; view không khai báo thì dùng mặc định.
 const DEFAULT_CTX = { label: "Markus Creator OS", actions: [] };
-initCopilot({
+if (FEATURES.copilot) initCopilot({
   getContext: () => {
     const hit = current();
     const ctx = hit && hit.view.copilot ? hit.view.copilot(hit.params) : DEFAULT_CTX;

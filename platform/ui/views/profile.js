@@ -116,7 +116,7 @@ export function render(root, params) {
    Mọi SĐT / email / tên người liên hệ đi qua contact() → Viewer không thấy. */
 function contactCard(c) {
   const co = companyOf(c), k = c.rel.contact;
-  const line = (ico, label, value) => `<dt>${ico} ${esc(label)}</dt><dd>${contact(value)}</dd>`;
+  const line = (ico, label, value) => `<dt>${ico} ${esc(label)}</dt><dd>${value ? contact(value) : `<span class="faint">Chưa có</span>`}</dd>`;
   return `<section data-tile="contact" class="card">
     <div class="card-head"><h2>${icon("phone", 16)} Liên hệ</h2>${repBadge(c)}</div>
     <dl class="dl card-pad">
@@ -124,9 +124,11 @@ function contactCard(c) {
       ${line(icon("person", 14), "Người liên hệ", k.person || c.name)}
       ${line(icon("phone", 14), "SĐT / Zalo", k.phone)}
       ${line(icon("mail", 14), "Email", k.email)}
+      ${k.zalo && k.zalo !== k.phone ? line(icon("phone", 14), "Chi tiết liên hệ", k.zalo) : ""}
+      ${k.website ? line(icon("external", 14), "Website", k.website) : ""}
       ${co ? `<dt>${icon("users", 14)} Công ty quản lý</dt><dd><a href="#/kham-pha?company=${esc(co.id)}">${esc(co.name)}</a> <span class="faint">· ${esc(co.kind)} · ${esc(co.id)}</span></dd>
         ${line(icon("person", 14), "Đầu mối công ty", co.person)}${line(icon("phone", 14), "SĐT công ty", co.phone)}${line(icon("mail", 14), "Email công ty", co.email)}` : ""}
-      <dt>Phụ trách nội bộ</dt><dd>${esc(c.rel.owner)}</dd>
+      <dt>Phụ trách nội bộ</dt><dd>${c.rel.owner ? esc(c.rel.owner) : `<span class="faint">Chưa gán</span>`}</dd>
     </dl>
   </section>`;
 }

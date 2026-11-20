@@ -10,7 +10,7 @@
 // Nguyên tắc: AI chỉ ĐỀ XUẤT. Mọi kết quả đều đi qua bước người dùng xem lại ở UI.
 
 import { PLATFORMS, BRANDS, COMPANIES, industryOf, competitorsOf, tierOf } from "../data/catalog.js";
-import { norm, evaluate, rateFor, heroCh, metricCh, metricPlatform, focusPlatform, sowKind, FAMILY, REL_STATUS, VIA, emptyFilters } from "../core/filters.js";
+import { norm, evaluate, rateFor, heroCh, metricCh, metricPlatform, focusPlatform, sowKind, FAMILY, REL_STATUS, VIA, emptyFilters, FILTER_DEFS, CATEGORIES } from "../core/filters.js";
 
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const dec = (n) => String(n).replace(".", ",");
@@ -39,6 +39,27 @@ const platKey = (s) => (/tik/.test(s) ? "tiktok" : /facebook|fb/.test(s) ? "face
 const hasPlat = (p, key) => { push(p.platforms, key); };
 
 const map = (key, table) => (m, p, say) => { const hit = table.find(([re]) => re.test(m[0])); if (hit) { push(p[key], hit[1]); say(hit[2] || hit[1]); } };
+
+/* Ngành nội dung THẬT trên Sheet (Primary/Secondary_Category). Từ khoá tiếng Việt / tiếng Anh → tên ngành đúng như trên Sheet.
+   Đặt cụ thể trước chung chung. Ngành không có trong dữ liệu hiện tại → báo "chưa lọc được" thay vì lọc ra 0 kết quả. */
+const TOPICS = [
+  [/review (?:do an|an uong|quan an|mon an)|food ?review|foodie|food blogger|am thuc|an uong|do an|mon an|quan an|f&b|\bfnb\b|an vat|cafe|ca phe/, "F&B Review"],
+  [/me (?:&|va) be|me be|me bim(?: sua)?|bim sua|mommy|hot mom|lam me|nuoi con|parenting|daddy|ong bo|bo bim|tre em|em be/, "Mom & Baby / Parenting"],
+  [/beauty(?: blogger)?|lam dep|skincare|skin care|cham soc da|my pham|makeup|trang diem/, "Beauty"],
+  [/lifestyle(?: vlog)?|\bvlog\w*|doi song/, "Lifestyle Vlog"],
+  [/ca si|nghe si|am nhac|music|\bhat\b|nhac si|rapper|\bdj\b|bieu dien|performance|dancer|nhay|vu cong/, "Music & Performance"],
+  [/fitness|\bgym\b|the hinh|the thao|suc khoe|health|yoga|chay bo|dinh duong|giam can|bac si|duoc si/, "Health & Fitness"],
+  [/\boto\b|o to|xe hoi|\bauto\b|xe may|moto|motor/, "Auto & Moto"],
+  [/nha cua|gia dung|noi that|home|living|decor|dien may/, "Home & Living"],
+  [/tai chinh|finance|dau tu|chung khoan|crypto|kinh doanh|business|ngan hang/, "Finance & Business"],
+  [/cong nghe|\btech\b|gadget|dien thoai|laptop|unbox\w*/, "Tech & Gadget"],
+  [/du lich|travel(?: blogger)?|phuot|khach san|resort/, "Travel"],
+  [/thoi trang|fashion|outfit|phoi do/, "Fashion & Style"],
+  [/hai huoc|comedy|giai tri|entertainment|dien vien/, "Comedy & Entertainment"],
+  [/giao duc|education|hoc tap|tieng anh|day hoc|giao vien/, "Education & Learning"],
+];
+const TOPIC_RE = new RegExp(TOPICS.map(([re]) => re.source).join("|"), "g");
+const topicRule = (m, p, say) => { const hit = TOPICS.find(([re]) => re.test(m[0])); if (!hit) return; push(p.categories, hit[1]); say(`Ngành ${hit[1]}`); };
 
 // Mỗi luật: [regex trên chuỗi đã bỏ dấu, hàm áp vào patch]. Thứ tự quan trọng: cụ thể trước, chung chung sau.
 const RULES = [
@@ -84,11 +105,17 @@ const RULES = [
   // --- Quan hệ ---
   [/working score\s*(?:tren|tu|>=|>)?\s*(\d(?:[.,]\d)?)/g, (m, p, say) => { const v = toNum(m[1]); p.scoreMin = v >= 4.5 ? "4.5" : v >= 4 ? "4" : "3.5"; say(`Working score ≥ ${dec(p.scoreMin)}`); }],
   [/(?:lam viec|hop tac)\s+(?:tot|de|on)|de lam viec|uy tin/g, (m, p, say) => { p.scoreMin = "4"; say("Working score ≥ 4"); }],
-  [/preferred|doi tac uu tien|uu tien|than thiet/g, (m, p, say) => { push(p.relStatus, "preferred"); say("Preferred partner"); }],
-  [/(?:da|tung)\s+(?:lam|hop tac|book\w*)\s+(?:viec\s+)?(?:voi\s+|qua\s+)?(?:markus|agency|ben minh|team)|da hop tac/g, (m, p, say) => { p.worked = true; say("Đã hợp tác với Markus"); }],
+  // Sheet chưa có nhãn Preferred: đặt vào khoá không lọc được (_noData) để parseQuery báo "chưa lọc được".
+  [/preferred|doi tac uu tien|uu tien|than thiet/g, (m, p, say) => { p._noData = true; say("Preferred partner"); }],
+  // Relationship_Status trên Sheet: Đã hợp tác / Đã báo giá / Chưa liên hệ.
+  [/da bao gia/g, (m, p, say) => { push(p.relStatus, "quoted"); say("Quan hệ: Đã báo giá"); }],
+  [/chua (?:lien he|lam viec|hop tac)/g, (m, p, say) => { push(p.relStatus, "network"); say("Quan hệ: Chưa liên hệ"); }],
+  [/(?:da|tung)\s+(?:lam|hop tac|book\w*)\s+(?:viec\s+)?(?:voi\s+|qua\s+)?(?:markus|agency|ben minh|team)|da hop tac/g, (m, p, say) => { push(p.relStatus, "active"); say("Quan hệ: Đã hợp tác"); }],
   [/truc tiep|khong qua (?:manager|mcn|quan ly)/g, (m, p, say) => { p.via = "direct"; say("Liên hệ trực tiếp"); }],
   [/(?:qua|thuoc)\s+mcn/g, (m, p, say) => { p.via = "mcn"; say("Qua MCN"); }],
   [/qua\s+(?:manager|quan ly)/g, (m, p, say) => { p.via = "manager"; say("Qua manager"); }],
+  // --- Ngành nội dung thật (trước Creator type: "mommy", "ca sĩ", "food blogger" là ngành trên Sheet) ---
+  [TOPIC_RE, topicRule],
   // --- Creator type ---
   [/mommy|hot mom|me bim(?: sua)?|bim sua|daddy|ong bo|bo bim|beauty blogger|food blogger|foodie|food reviewer|travel blogger|reviewer|streamer|gamer|celebrity|celeb|dien vien|ca si|nghe si|\bkoc\b|chuyen gia|bac si|duoc si|expert/g,
     map("types", [[/mommy|hot mom|me bim|bim sua/, "Mommy"], [/daddy|ong bo|bo bim/, "Daddy"], [/beauty blogger/, "Beauty Blogger"], [/food|foodie/, "Food Blogger"], [/travel/, "Travel"], [/reviewer/, "Reviewer"], [/streamer|gamer/, "Streamer"], [/celeb|dien vien|ca si|nghe si/, "Celebrity"], [/koc/, "KOC"], [/chuyen gia|bac si|duoc si|expert/, "Chuyên gia"]])],
@@ -110,9 +137,6 @@ const RULES = [
   [new RegExp(`(?:\\b(?:co(?: kenh)?|lam|dang lam|tren)\\s+)?${PLAT_RE}`, "g"), (m, p, say) => { const key = platKey(m[1]); hasPlat(p, key); say(`Có ${PLATFORMS[key].label}`); }],
   // --- Giới tính (chỉ nhận khi có từ đi kèm, tránh nhầm "năm", "Việt Nam") ---
   [/(?<=(?:creator|kol|koc|gioi tinh|ban)\s)(nu|nam)\b|\b(nu|nam) gioi\b/g, (m, p, say) => { p.gender = (m[1] || m[2]) === "nu" ? "Nữ" : "Nam"; say(`Giới tính ${p.gender}`); }],
-  // --- Ngành nội dung ---
-  [/me (?:&|va) be|me be|beauty|lam dep|skincare|my pham|makeup|f&b|am thuc|an uong|do an|lifestyle|cong nghe|\btech\b|thoi trang|fashion|du lich|travel|fitness|\bgym\b|the thao|suc khoe|gia dung|nha cua|tai chinh|finance|gaming|\bgame\b|giao duc|tieng anh|giai tri|gia dinh/g,
-    map("categories", [[/me (?:&|va) be|me be/, "Mẹ & Bé"], [/beauty|lam dep|skincare|my pham|makeup/, "Beauty"], [/f&b|am thuc|an uong|do an/, "F&B"], [/lifestyle/, "Lifestyle"], [/cong nghe|tech/, "Công nghệ"], [/thoi trang|fashion/, "Fashion"], [/du lich|travel/, "Du lịch"], [/fitness|gym|the thao/, "Fitness"], [/suc khoe/, "Sức khoẻ"], [/gia dung|nha cua/, "Gia dụng"], [/tai chinh|finance/, "Tài chính"], [/gam/, "Game"], [/giao duc|tieng anh/, "Giáo dục"], [/giai tri/, "Giải trí"], [/gia dinh/, "Gia đình"]])],
   // --- Format ---
   [/livestream|\blive\b|review|vlog|video ngan|video dai/g, map("formats", [[/live/, "Livestream"], [/review/, "Review"], [/vlog/, "Vlog"], [/video ngan/, "Video ngắn"], [/video dai/, "Video dài"]])],
 ];
@@ -125,7 +149,11 @@ const STOP = new Set("de xuat goi y tim kiem cac nhung cho toi minh creator crea
  *  understood — danh sách điều AI đã hiểu (đúng thứ tự xuất hiện trong luật)
  *  leftover  — những từ AI KHÔNG hiểu, UI phải hiện ra để người dùng biết
  */
+// Khoá bộ lọc đang dùng được (bản thật đã bỏ bộ lọc chưa có dữ liệu — NO_DATA_YET trong core/filters.js).
+// Tính lại mỗi lần đọc câu: danh sách bộ lọc có thể đổi theo dữ liệu (setOptionsFromData).
+const liveKeys = () => new Set(FILTER_DEFS.flatMap((def) => [def.key, def.min, def.max, def.sowKey, def.key === "platforms" ? "platFollowers" : null].filter(Boolean)));
 export function parseQuery(text, { allowPrice = true } = {}) {
+  const LIVE_KEYS = liveKeys();
   const src = String(text || "").normalize("NFC");
   const n = norm(src);
   const mask = new Array(n.length).fill(false);
@@ -133,6 +161,7 @@ export function parseQuery(text, { allowPrice = true } = {}) {
   const understood = [];
   let priceSkipped = false;
 
+  const unsupported = [];
   RULES.forEach(([re, apply, kind]) => {
     re.lastIndex = 0;
     let m;
@@ -142,7 +171,14 @@ export function parseQuery(text, { allowPrice = true } = {}) {
       if (mask.slice(start, end).some(Boolean)) continue; // đã có luật khác nhận đoạn này
       mask.fill(true, start, end);
       if (kind === "price" && !allowPrice) { priceSkipped = true; continue; }
-      apply(m, patch, (label) => understood.push(label));
+      // Tiêu chí rơi vào bộ lọc chưa có dữ liệu (ẩn ở bản thật) hoặc ngành không có trong dữ liệu → không lọc, báo riêng.
+      const before = structuredClone(patch);
+      const labels = [];
+      apply(m, patch, (label) => labels.push(label));
+      const changed = Object.keys(patch).filter((k) => JSON.stringify(patch[k]) !== JSON.stringify(before[k]));
+      const dead = changed.filter((k) => !LIVE_KEYS.has(k) || (k === "categories" && CATEGORIES.length > 0 && patch.categories.some((c) => !CATEGORIES.includes(c))));
+      if (dead.length && dead.length === changed.length) { dead.forEach((k) => { patch[k] = before[k]; }); unsupported.push(...labels); }
+      else understood.push(...labels);
     }
   });
 
@@ -155,8 +191,8 @@ export function parseQuery(text, { allowPrice = true } = {}) {
     buf = "";
   }
   // Không hiểu gì → coi cả câu là tìm theo tên.
-  if (!understood.length && src.trim()) { patch.q = src.trim(); return { patch, understood: [`Tìm theo tên “${src.trim()}”`], leftover: [], priceSkipped }; }
-  return { patch, understood, leftover, priceSkipped };
+  if (!understood.length && !unsupported.length && src.trim()) { patch.q = src.trim(); return { patch, understood: [`Tìm theo tên “${src.trim()}”`], leftover: [], unsupported, priceSkipped }; }
+  return { patch, understood: [...new Set(understood)], leftover, unsupported: [...new Set(unsupported)], priceSkipped };
 }
 
 /* =====================================================================

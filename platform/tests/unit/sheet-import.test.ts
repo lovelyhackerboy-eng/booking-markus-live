@@ -83,6 +83,13 @@ describe("buildRecords", () => {
     expect(b.records[1].channels[0]).toMatchObject({ platform: "youtube", followers: 1200000 });
   });
 
+  it("derives the birth year from Age when Year_Of_Birth is empty", () => {
+    const p = payload();
+    const rows = [row({ Creator_Name: "Fake A", Age: "30" }), ...p.rows.slice(1)];
+    const b = buildRecords({ ...p, rows });
+    expect(b.records[0].creator.yearOfBirth).toBe(new Date().getFullYear() - 30);
+  });
+
   it("counts skipped rows by reason and ignores empty rows", () => {
     expect(buildRecords(payload()).skipped).toEqual({ "quarantine:shared_url": 1 });
     expect(buildRecords({ ...payload(), rows: [...payload().rows, row({ STT: "99" })], uids: [...payload().uids, null] }).skipped).toEqual({ "quarantine:shared_url": 1 });

@@ -66,3 +66,18 @@ Thử bản đóng gói ở máy giống hosting: thư mục thư viện phải 
 ## Quay lại
 
 Xoá app trong Node selector + thư mục `~/booking.markus.agency/v2` + DB `thestvco_markus_v2`. App PHP không bị đụng tới.
+
+## Nhập Sheet định kỳ (cron, bật 21/11/2026)
+
+- Script: `deploy/import-cron.sh`, bản đang chạy ở `~/markus-v2-state/import-cron.sh` (ngoài thư mục app, deploy không ghi đè). Sửa script thì chép lại bằng `scp`.
+- Lịch: `*/15 * * * * /bin/bash /home/thestvco/markus-v2-state/import-cron.sh`. Mỗi lần khoảng 3 giây; `flock` chặn hai lần chạy chồng nhau.
+- Log: `~/markus-v2-state/import.log` (chỉ số đếm, giữ 2.000 dòng cuối). Mỗi lần chạy cũng ghi 1 dòng vào bảng `sync_runs`.
+- Tắt: xoá dòng đó khỏi crontab. **Sửa crontab luôn bằng file** (`crontab -l > file`, sửa, `crontab file`); dạng `… | crontab -` từng làm mất các dòng khác trên hosting này.
+- Bộ nhập tự dừng nếu số creator giảm quá 20% so với lần trước (Sheet đọc thiếu), để không xoá nhầm dữ liệu.
+
+## AI (DeepSeek) — bật 21/11/2026
+
+- Dùng chung tài khoản DeepSeek với app PHP: `runtime.env` có `DEEPSEEK_KEY_PATH=/home/thestvco/booking.markus.agency/hosting/deepseek-key.txt` (chỉ đường dẫn; Node đọc khoá lúc gọi). Khi đổi khoá DeepSeek chỉ cần thay nội dung file đó.
+- `POST /v2/api/ai/search`: câu tìm kiếm → bộ lọc. Chỉ gửi câu hỏi + danh mục giá trị cho phép, không gửi dữ liệu creator. Lỗi / quá 12 giây → UI dùng bộ đọc theo luật.
+- `POST /v2/api/ai/agent` (vai trò có quyền sửa): trợ lý lên campaign, công cụ chạy ở server theo quyền người dùng. Gửi cho DeepSeek tên, ngành, khu vực, tier, follower, trạng thái quan hệ và (nếu có quyền) giá; **không bao giờ** gửi liên hệ hay ghi chú. AI chỉ đề xuất; người dùng bấm mới thêm vào Ứng viên.
+- Giới hạn: 30 lượt tìm / 15 lượt trợ lý mỗi người mỗi phút; mỗi lượt ghi 1 dòng `audit_log` (`ai.search`, `ai.agent`).

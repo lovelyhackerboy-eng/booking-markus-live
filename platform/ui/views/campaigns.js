@@ -8,6 +8,8 @@ import { $, esc, icon, delegate, openOverlay, toast, fmtNum } from "../core/ui.j
 import { state, can, me, getCreator, visibleLists, isMine, getList, setActiveList, shortlistOf, canManageList, setMembers } from "../core/store.js";
 import { TEAM } from "../data/catalog.js";
 import { pageHead, emptyState } from "../core/parts.js";
+import { openAssistant } from "./assistant.js";
+import { FEATURES } from "../data/live.js";
 import { refresh } from "../core/router.js";
 import { post } from "../ai/copilot.js";
 import * as shortlist from "./shortlist.js";
@@ -82,6 +84,7 @@ function renderDetail(el, p) {
     <a class="back" href="#/campaign">${icon("chevL", 16)} ${can("allCampaigns") ? "Tất cả campaign" : "Campaign của tôi"}</a>
     ${pageHead(l.name, `${l.brand ? "Brand " + esc(l.brand) + " · " : ""}${people(l)} ${roleTag(l)}`,
       `${vis.length > 1 ? `<label class="sr-only" for="cp-switch">Đổi campaign</label><select class="select" id="cp-switch" style="width:auto">${vis.map((x) => `<option value="${x.id}" ${x.id === l.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}
+       ${can("edit") && FEATURES.aiAgent ? `<button class="btn btn-ai" type="button" data-act="assistant">${icon("sparkles", 16)} Trợ lý AI</button>` : ""}
        ${canManageList(l) ? `<button class="btn" type="button" data-act="members">${icon("users", 16)} Thành viên</button>` : ""}`)}
     <div class="card card-pad project-bar">
       <div><span class="faint">KPI view mục tiêu</span><strong class="num">${l.kpiViews ? fmtNum(l.kpiViews) : "Chưa đặt"}</strong>${l.kpiViews ? `<span class="bar ${barCls(k)}"><i style="width:${Math.min(100, k)}%"></i></span><span class="dt-sub">Đã duyệt đạt ${k}% (${fmtNum(s.views)} view dự kiến)</span>` : ""}</div>
@@ -104,6 +107,7 @@ function renderDetail(el, p) {
   delegate(el, "click", "[data-step]", (e, b) => { location.hash = `#/campaign/${l.id}?tab=${b.dataset.step}`; });
   $("#cp-switch", el)?.addEventListener("change", (e) => { location.hash = `#/campaign/${e.target.value}?tab=${tab}`; });
   delegate(el, "click", "[data-act=members]", () => openMembers(l));
+  delegate(el, "click", "[data-act=assistant]", () => openAssistant(l));
 }
 
 function openMembers(l) {

@@ -15,7 +15,9 @@ export const FEATURES = {
   dataSync: false, // màn "Dữ liệu & đồng bộ", hàng chờ duyệt
   addCreator: false, // thêm / sửa creator (chờ bật ghi Sheet)
   editMetrics: false, // sửa follower, thêm giá, đổi trạng thái quan hệ, label
-  copilot: false, // trợ lý AI (bản mẫu trả lời giả)
+  copilot: false, // khung Copilot của prototype (trả lời giả) — thay bằng Trợ lý AI campaign bên dưới
+  aiSearch: true, // "Tìm bằng AI" gọi DeepSeek (/api/ai/search), lỗi thì dùng bộ đọc theo luật
+  aiAgent: true, // Trợ lý AI lên campaign (/api/ai/agent) — chỉ đề xuất, người dùng bấm mới ghi
 };
 
 let csrf = "";
