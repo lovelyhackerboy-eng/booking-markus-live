@@ -3,13 +3,13 @@
 // Giữ nguyên tên hàm của prototype để các màn không phải đổi.
 
 import { TEAM } from "../data/catalog.js";
-import { api, toCreator, toList, toBooking, FEATURES, stepLabel } from "../data/live.js";
+import { api, toCreator, toList, toBooking, FEATURES, stepLabel, setDemoHandler, inDemo } from "../data/live.js";
 import { emptyFilters, setOptionsFromData } from "./filters.js";
 import { ageDays, toast } from "./ui.js";
 
 const LS = "markus_v2_";
 const load = (k, fallback) => { try { const v = localStorage.getItem(LS + k); return v == null ? fallback : JSON.parse(v); } catch (e) { return fallback; } };
-const save = (k, v) => { try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch (e) {} };
+const save = (k, v) => { if (inDemo()) return; try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch (e) {} }; // dữ liệu mẫu của hướng dẫn không ghi đè lựa chọn thật
 
 /* ---------- Phân quyền: lấy từ phiên đăng nhập (server quyết định). Viewer KHÔNG có "price"/"contact" ---------- */
 export const ROLES = {
@@ -80,9 +80,22 @@ function setCandidatesFrom(l) {
     .map((x) => { const c = getCreator(x.creatorId); const i = c.rates.findIndex((r) => r.sowKey === x.sow); return { id: x.creatorId, rateIdx: i < 0 ? 0 : i }; });
 }
 export async function reload() {
+  if (inDemo()) return; // trong hướng dẫn: không nạp dữ liệu thật đè lên dữ liệu mẫu
   const s = await api("/snapshot");
   applySnapshot(s);
   emit("data"); emit("lists"); emit("shortlist");
+}
+/** Hướng dẫn: thay dữ liệu bằng bộ mẫu; handler trả lời mọi lời gọi API (không request nào ra máy chủ). */
+export function enterDemo(snapshot, handler) {
+  setDemoHandler(handler);
+  applySnapshot({ ...snapshot, user: state.user, team: state.team, features: { sheetWrite: false } });
+  state.activeListId = snapshot.activeListId || state.lists[0]?.id || null;
+  emit("data"); emit("lists"); emit("shortlist");
+}
+export async function exitDemo() {
+  setDemoHandler(null);
+  state.activeListId = load("activeListId", null);
+  await reload();
 }
 // Ghi lên server; lỗi → báo và nạp lại để giao diện khớp với server.
 const ERR = {

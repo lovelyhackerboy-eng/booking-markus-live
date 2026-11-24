@@ -433,7 +433,7 @@ a.chan-item:hover .num { text-decoration: underline; }
 .kb-card-foot { justify-content: space-between; }
 .kb-card-foot .pill-wrap { min-width: 0; max-width: 70%; }
 .kb-placeholder { height: 56px; border-radius: var(--r-md, 12px); border: 2px dashed color-mix(in srgb, var(--pill) 60%, transparent); background: color-mix(in srgb, var(--pill) 8%, transparent); }
-@media (max-width: 640px) { .kanban { grid-auto-columns: 82%; } }
+@media (max-width: 640px) { .kanban { grid-auto-columns: 82%; align-items: start; } }
 
 .settings-form fieldset { margin: 0; }
 .settings-form legend { padding: 0 6px; }

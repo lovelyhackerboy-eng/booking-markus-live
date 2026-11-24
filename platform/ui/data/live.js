@@ -23,7 +23,12 @@ export const FEATURES = {
 };
 
 let csrf = "";
+// Chế độ hướng dẫn (core/tour.js): mọi lời gọi API đi qua demoHandler, KHÔNG có request nào tới máy chủ.
+let demoHandler = null;
+export const setDemoHandler = (fn) => { demoHandler = fn; };
+export const inDemo = () => !!demoHandler;
 export async function api(path, { method = "GET", body } = {}) {
+  if (demoHandler) return demoHandler(path, method, body);
   const res = await fetch(API + path, {
     method,
     headers: { ...(body ? { "content-type": "application/json" } : {}), ...(method !== "GET" ? { "x-csrf-token": csrf } : {}) },

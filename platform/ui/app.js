@@ -20,6 +20,7 @@ import * as bookings from "./views/bookings.js";
 import * as freshness from "./views/freshness.js";
 import * as reports from "./views/reports.js";
 import { initFeedback } from "./core/feedback.js";
+import { initTour } from "./core/tour.js";
 
 /* ---------- Route: user journey Discover → Evaluate → Book → Learn ---------- */
 route("kham-pha", discovery, "kham-pha");
@@ -164,4 +165,5 @@ drawStyle();
   applySnapshot(await loadSnapshot());
   drawUser();
   start($("#main"), () => { drawNav(); refreshContext(); });
+  initTour($("#btn-help")); // lần đầu tự mở "Bắt đầu nhanh"; sau đó mở lại bằng nút Hướng dẫn
 })();
