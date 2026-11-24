@@ -44,11 +44,12 @@ const SORTS = [
   { id: "followers", label: "Follower", dir: "desc", key: fol },
   { id: "total", label: "Tổng follower đa kênh", dir: "desc", key: (c) => totalFollowers(c) },
   { id: "er", label: "Engagement", dir: "desc", key: (c) => metricCh(c, state.filters).er.value },
+  { id: "views", label: "View trung bình", dir: "desc", key: (c) => metricCh(c, state.filters).avgViews.value },
   { id: "rate", label: "Giá tham chiếu", perm: "price", dir: "asc", key: (c) => rateFor(c)?.amount ?? null },
   { id: "score", label: "Working score", dir: "desc", key: (c) => c.rel.score || null },
   { id: "fresh", label: "Ngày cập nhật", dir: "desc", key: (c) => new Date(c.lastSynced).getTime(), words: ["Mới → cũ", "Cũ → mới"] },
 ];
-const LIVE_SORTS = SORTS.filter((x) => FEATURES.metricsExtra || !["er", "score"].includes(x.id));
+const LIVE_SORTS = SORTS.filter((x) => FEATURES.metricsExtra || !["score"].includes(x.id)).filter((x) => FEATURES.metrics || x.id !== "er");
 const sortDef = () => LIVE_SORTS.find((s) => s.id === state.sort) || SORTS[0];
 function sorterOf(s, dir) {
   if (!s.key) return null;
@@ -310,8 +311,8 @@ function cardHtml(r, active) {
     ${channelRow(c, focusPlatform(state.filters))}
     <div class="res-stats">${srcNote(c)}
       <div class="stat"><strong>${plat(mp, 20)} <span class="num">${fmtNum(h.followers.value)}</span></strong><span>Follower ${trend(h.growthPct)}</span></div>
-      <div class="stat" data-f="metricsExtra"><strong class="num">${fmtPct(h.er.value)}</strong><span>Engagement</span></div>
-      <div class="stat" data-f="metricsExtra"><strong class="num">${fmtNum(h.avgViews.value)}</strong><span>View trung bình</span></div>
+      <div class="stat" data-f="metrics"><strong class="num">${fmtPct(h.er.value)}</strong><span>Engagement</span></div>
+      <div class="stat" data-f="metrics"><strong class="num">${fmtNum(h.avgViews.value)}</strong><span>View trung bình</span></div>
       <div class="stat"><strong>${rate ? money(rate.amount) : can("price") ? "—" : redacted("Ẩn giá")}</strong><span>Giá${rate ? " từ · " + esc(rate.sow) : can("price") ? " · chưa có" : ""}</span></div>
       <div class="stat" data-f="metricsExtra"><strong>${stars(c.rel.score)}</strong><span>Working score</span></div>
       <div class="stat stat-brands" data-f="brands">${brandStack(c, 4, flagged())}<span>Brand đã hợp tác</span></div>
@@ -329,7 +330,7 @@ function rowHtml(r, active, cols) {
       <td class="t-check"><label class="check" title="${activeList() ? `Thêm vào Ứng viên của campaign “${esc(activeList().name)}”` : "Chưa có campaign đang làm"}"><input type="checkbox" data-shortlist="${c.id}" ${picked ? "checked" : ""} ${activeList() && can("edit") ? "" : "disabled"} aria-label="Thêm ${esc(c.name)} vào Ứng viên ${activeList() ? "của campaign " + esc(activeList().name) : ""}" /></label></td>
       <td class="t-main">${creatorCell(c)}<span class="row-acts">${repBadge(c)}<button class="btn btn-sm btn-primary" type="button" data-save="${c.id}" data-compact aria-haspopup="menu" title="Lưu vào campaign">${saveLabel(c.id, true)}</button><button class="btn btn-ghost btn-icon btn-sm" type="button" data-lookalike="${c.id}" aria-label="Tìm creator tương tự ${esc(c.name)}" title="Tìm tương tự">${icon("similar", 16)}</button></span></td>
       <td data-label="Overall tier">${tierBadge(c.tier)}</td>
-      <td data-label="Kênh" class="t-ch">${channelCells(c)}<span class="dt-sub"><span data-f="metricsExtra">ER ${PLATFORMS[mp].label} ${fmtPct(h.er.value)} · </span>tổng ~${fmtNum(totalFollowers(c))} · ${relTime(c.lastSynced)}${pend ? " · chờ duyệt" : ""}</span></td>
+      <td data-label="Kênh" class="t-ch">${channelCells(c)}<span class="dt-sub"><span data-f="metrics">ER ${PLATFORMS[mp].label} ${fmtPct(h.er.value)} · View TB ${fmtNum(h.avgViews.value)} · </span>tổng ~${fmtNum(totalFollowers(c))} · ${relTime(c.lastSynced)}${pend ? " · chờ duyệt" : ""}</span></td>
       <td data-label="Giá tham chiếu" class="t-right">${benchRate(c)}</td>
       <td data-label="Brand đã hợp tác" class="t-full" data-f="brands">${brandChips(c, 3, flagged())}</td>
       <td data-label="Quan hệ">${relBadge(c.rel.status)}<span class="dt-sub"><span data-f="metricsExtra">${stars(c.rel.score)} · </span>${esc(c.rel.owner)}</span></td>

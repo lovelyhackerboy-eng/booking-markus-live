@@ -445,3 +445,55 @@ a.chan-item:hover .num { text-decoration: underline; }
 .step-final { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); white-space: nowrap; }
 .step-move { display: inline-flex; }
 @media (max-width: 560px) { .step-row { grid-template-columns: auto minmax(0, 1fr) auto; } .step-row .num { display: none; } .step-move { grid-column: 2 / -1; justify-content: flex-end; } }
+
+/* ---------- Chỉ số: clip gần đây ---------- */
+.metric-note { grid-column: 1 / -1; margin: 0; font-size: var(--fs-xs); }
+.clip-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); }
+.clip-sum > div { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-3); border-radius: var(--r-md, 12px); background: var(--primary-soft); }
+.clip-sum strong { font-size: var(--fs-lg); }
+.clip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--sp-2); }
+.clip-table td, .track-table td { vertical-align: middle; }
+.cell-clip { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-nowrap { white-space: nowrap; }
+.input-sm { height: 32px; padding: 0 8px; width: 110px; text-align: right; }
+
+/* ---------- Campaign: tab Theo dõi ---------- */
+.track-head { display: grid; gap: var(--sp-3); }
+.track-kpi { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: var(--sp-4); }
+.track-kpi > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.track-kpi strong { font-size: var(--fs-lg); }
+.track-list { display: grid; gap: var(--sp-3); }
+.track-creator { overflow: hidden; }
+.track-c-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--card-border); flex-wrap: wrap; }
+.track-c-total { display: flex; flex-direction: column; align-items: flex-end; }
+.track-none { margin: 0; padding: var(--sp-3) var(--sp-4); }
+.track-table tr.is-excluded { opacity: .5; }
+.track-table tr.is-excluded a { text-decoration: line-through; }
+@media (max-width: 640px) { .track-kpi { grid-template-columns: 1fr 1fr; } .track-kpi > div:first-child { grid-column: 1 / -1; } .clip-sum { grid-template-columns: 1fr 1fr 1fr; gap: var(--sp-2); } }
+
+/* ---------- Báo cáo ---------- */
+.report-actions { gap: var(--sp-2); }
+.report-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-3); }
+.report-kpi { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.report-kpi strong { font-family: var(--font-display); font-size: var(--fs-kpi, 1.6rem); font-weight: var(--display-weight, 700); line-height: 1.15; }
+.report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--sp-3); }
+.report-grid h3, .report-grid .card-head h3 { margin: 0 0 var(--sp-3); font-size: var(--fs-md, 1rem); }
+.report-funnel { display: grid; gap: 8px; }
+.rf { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) 36px; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.rf > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rf-bar { height: 12px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.06)); overflow: hidden; }
+.rf-bar i { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.rf strong { text-align: right; }
+.report-bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; padding-top: var(--sp-2); overflow-x: auto; }
+.rb { flex: 1 0 22px; max-width: 44px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.rb i { display: block; width: 100%; border-radius: 6px 6px 2px 2px; background: var(--primary); min-height: 3px; }
+.rb span { font-size: 10px; color: var(--text-faint); }
+.report-top { margin: 0; padding: var(--sp-2) var(--sp-4) var(--sp-4) var(--sp-6, 32px); display: grid; gap: 8px; }
+.report-top li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--sp-2); }
+.report-top li .dt-sub { grid-column: 1 / -1; }
+.report-kpicell { min-width: 120px; }
+@media print {
+  .sidebar, .topbar, .bottom-nav, .nav, .report-actions, .camp-tabs, .lifecycle .life-act, [data-act], .copilot, #copilot, .toast { display: none !important; }
+  body, .page { background: #fff !important; }
+  .card { box-shadow: none !important; break-inside: avoid; }
+}

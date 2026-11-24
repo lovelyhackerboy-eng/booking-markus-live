@@ -176,7 +176,7 @@
 .login-err { color: var(--danger, #c0392b); margin: 0; }
 
 /* ---------- Bản thật: ẩn phần chưa có dữ liệu nguồn (FEATURES trong data/live.js) ---------- */
-.f-off-metricsExtra [data-f="metricsExtra"], .f-off-metricsExtra .kpi-perf, .f-off-metricsExtra .kpi-gauge, .f-off-metricsExtra .kpi-spark, .f-off-metricsExtra .ch-mini-spark,
+.f-off-metrics [data-f="metrics"], .f-off-metricsExtra [data-f="metricsExtra"], .f-off-metricsExtra .kpi-perf, .f-off-metricsExtra .kpi-gauge, .f-off-metricsExtra .kpi-spark, .f-off-metricsExtra .ch-mini-spark,
 .f-off-brands [data-f="brands"], .f-off-brands [data-tile="brands"],
 .f-off-audience [data-f="audience"], .f-off-audience [data-tile="audience"],
 .f-off-content [data-tile="content"],

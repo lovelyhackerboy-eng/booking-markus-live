@@ -18,6 +18,7 @@ import * as shortlist from "./views/shortlist.js";
 import * as campaigns from "./views/campaigns.js";
 import * as bookings from "./views/bookings.js";
 import * as freshness from "./views/freshness.js";
+import * as reports from "./views/reports.js";
 import { initFeedback } from "./core/feedback.js";
 
 /* ---------- Route: user journey Discover → Evaluate → Book → Learn ---------- */
@@ -35,6 +36,7 @@ const alias = (tab) => ({ render: (el, p) => { location.replace(campaignHash(tab
 route("shortlist", alias("ung-vien"), "campaign");
 route("danh-sach", alias("lien-he"), "campaign");
 route("booking", bookings, "booking");
+route("bao-cao", reports, "bao-cao");
 route("du-lieu", FEATURES.dataSync ? freshness : notYet("Dữ liệu & đồng bộ"), "du-lieu");
 
 /* ---------- Nav: step = nhãn nhóm (chỉ hiện khi sidebar mở rộng) ---------- */
@@ -46,11 +48,13 @@ const NAV = [
   { id: "campaign", label: "Campaign", short: "Campaign", icon: "users" },
   { step: "3 · Booking" },
   { id: "booking", label: "Booking tracker", short: "Booking", icon: "calendar", badge: () => state.bookings.filter((b) => b.status !== "paid" && canSeeBooking(b)).length },
-  { step: "4 · Học từ dữ liệu", feature: "dataSync" },
+  { step: "4 · Báo cáo" },
+  { id: "bao-cao", label: "Báo cáo", short: "Báo cáo", icon: "chart" },
+  { step: "5 · Học từ dữ liệu", feature: "dataSync" },
   { id: "du-lieu", label: "Dữ liệu & đồng bộ", short: "Dữ liệu", icon: "data", feature: "dataSync", badge: () => state.reviewQueue.length + state.conflicts.length },
 ];
 // Mobile: 4 mục + nút "Thêm" nổi ở giữa thanh dưới. "Dữ liệu & đồng bộ" là icon trên topbar (#btn-data-m).
-const MOBILE_ORDER = ["kham-pha", "campaign", "them-creator", "booking"];
+const MOBILE_ORDER = ["kham-pha", "campaign", "them-creator", "booking", "bao-cao"];
 
 // Icon nav: outline khi thường, bản fill khi là mục đang mở (như SF Symbols). size: 20–22 ở sidebar, 24 ở tab bar mobile.
 function navItem(n, activeId, compact, size = 22) {

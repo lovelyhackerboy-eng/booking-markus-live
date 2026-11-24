@@ -15,6 +15,8 @@ import { refresh } from "../core/router.js";
 import { post } from "../ai/copilot.js";
 import * as shortlist from "./shortlist.js";
 import * as lists from "./lists.js";
+import * as tracking from "./tracking.js";
+import * as reports from "./reports.js";
 
 let root = null, scope = "all", ownerF = "", statusF = ""; // bộ lọc màn tổng
 
@@ -90,7 +92,8 @@ function renderDetail(el, p) {
     return;
   }
   setActiveList(l.id, true); // mở campaign nào thì đó là campaign đang làm (Khám phá lưu vào đây)
-  const tab = p.tab === "lien-he" ? "lien-he" : "ung-vien";
+  const TABS = ["ung-vien", "lien-he", "theo-doi", "bao-cao"];
+  const tab = TABS.includes(p.tab) ? p.tab : "ung-vien";
   const s = stats(l), k = pct(s.views, l.kpiViews), vis = visibleLists();
   el.innerHTML = `<div class="page">
     <a class="back" href="#/campaign">${icon("chevL", 16)} ${can("allCampaigns") ? "Tất cả campaign" : "Campaign của tôi"}</a>
@@ -108,15 +111,21 @@ function renderDetail(el, p) {
     <div class="camp-tabs">
       <div class="segmented" role="group" aria-label="Bước của campaign">
         <button type="button" data-step="ung-vien" aria-pressed="${tab === "ung-vien"}">1 · Ứng viên <span class="badge ${s.cand ? "badge-primary" : ""}">${s.cand}</span></button>
-        <button type="button" data-step="lien-he" aria-pressed="${tab === "lien-he"}">2 · Liên hệ <span class="badge">${s.ent}</span></button>
+        <button type="button" data-step="lien-he" aria-pressed="${tab === "lien-he"}" data-tour="tab-contact">2 · Liên hệ <span class="badge">${s.ent}</span></button>
+        <button type="button" data-step="theo-doi" aria-pressed="${tab === "theo-doi"}" data-tour="tab-track">3 · Theo dõi <span class="badge">${s.booked}</span></button>
+        <button type="button" data-step="bao-cao" aria-pressed="${tab === "bao-cao"}" data-tour="tab-report">4 · Báo cáo</button>
       </div>
-      <span class="faint">${tab === "ung-vien" ? "Cân nhắc, ước tính KPI, so sánh, xuất báo giá. Bấm <strong>Duyệt</strong> để chuyển creator sang bước Liên hệ." : `Kéo thẻ creator qua các bước tới “${esc(l.steps.find((x) => x.final)?.label || "Đã chốt")}”; mỗi lần đổi đều ghi vào CRM của creator.${canManageList(l) ? ` <button class="link-btn" type="button" data-act="settings" data-focus="steps">Sửa các bước</button>` : ""}`}</span>
+      <span class="faint">${tab === "ung-vien" ? "Cân nhắc, ước tính KPI, so sánh, xuất báo giá. Bấm <strong>Duyệt</strong> để chuyển creator sang bước Liên hệ."
+        : tab === "theo-doi" ? "Bài đăng của creator đã chốt: dán link, nhập số liệu; YouTube tự tìm video trong khoảng ngày theo dõi."
+        : tab === "bao-cao" ? "KPI so với view đã giao, phễu liên hệ và hiệu quả từng creator. Xuất CSV hoặc in PDF để gửi khách." : `Kéo thẻ creator qua các bước tới “${esc(l.steps.find((x) => x.final)?.label || "Đã chốt")}”; mỗi lần đổi đều ghi vào CRM của creator.${canManageList(l) ? ` <button class="link-btn" type="button" data-act="settings" data-focus="steps">Sửa các bước</button>` : ""}`}</span>
     </div>
     <div class="camp-body" id="camp-body"></div>
   </div>`;
   const body = $("#camp-body", el);
   if (tab === "ung-vien") shortlist.render(body, { view: p.view, export: p.export });
-  else lists.render(body);
+  else if (tab === "lien-he") lists.render(body);
+  else if (tab === "theo-doi") tracking.render(body, l);
+  else reports.renderCampaign(body, l);
 
   delegate(el, "click", "[data-step]", (e, b) => { location.hash = `#/campaign/${l.id}?tab=${b.dataset.step}`; });
   $("#cp-switch", el)?.addEventListener("change", (e) => { location.hash = `#/campaign/${e.target.value}?tab=${tab}`; });
@@ -200,7 +209,7 @@ export function onShortlist() { if (root && document.contains(root)) refresh(); 
 export const onLists = onShortlist;
 
 export function copilot(p) {
-  if (p.id && getList(p.id)) return p.tab === "lien-he" ? lists.copilot() : shortlist.copilot();
+  if (p.id && getList(p.id)) return p.tab === "lien-he" ? lists.copilot() : p.tab === "theo-doi" || p.tab === "bao-cao" ? { label: getList(p.id).name, actions: [] } : shortlist.copilot();
   return {
     label: "Campaign",
     actions: [

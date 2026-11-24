@@ -3,6 +3,7 @@
 // Thay cho viewBookingDetail() trong app.js (modal liệt kê ~20 trường theo chiều dọc).
 // Mỗi tab là 1 hàm tab*() trả về HTML → thêm/bớt tab chỉ cần sửa mảng TABS.
 
+import { openClips } from "./clips.js";
 import { $, esc, icon, delegate, openOverlay, toast, fmtNum, fmtPct, fmtDate, relTime, count } from "../core/ui.js";
 import { state, can, me, getCreator, bookingsOf, toggleShortlist, addNote, setRelStatus, addRate, verifyMetric, editMetric, BOOKING_STAGES, campaignHash, FEATURES } from "../core/store.js";
 import { setQuery } from "../core/router.js";
@@ -101,6 +102,7 @@ export function render(root, params) {
     if (act === "compare") aiCompare(c);
     if (act === "verify") { verifyMetric(c.id, b.dataset.p, b.dataset.m); toast("Đã xác minh", `${METRIC_LABEL[b.dataset.m]} ${PLATFORMS[b.dataset.p].label} — bởi ${me()}`); }
     if (act === "edit-metrics") openEditMetrics(c, b.dataset.p);
+    if (act === "clips") openClips(c, b.dataset.p);
     if (act === "add-rate") openAddRate(c);
     if (act === "status") openStatus(c);
   });
@@ -165,7 +167,7 @@ function tabOverview(c, bks) {
         <div class="card-head"><h2>Kênh mạng xã hội</h2><button class="btn btn-ghost btn-sm" type="button" data-goto-tab="kenh">Chi tiết ${icon("chevR", 14)}</button></div>
         <div class="card-pad ch-mini">${channelOrder(c).map((p) => { const ch = c.channels[p]; return `
           <div class="ch-mini-row">${plat(p)}<div><strong>${PLATFORMS[p].label}</strong>${p === c.hero ? ` <span class="badge badge-primary">Hero</span>` : ""}<span class="dt-sub">${esc(ch.handle)} · ${esc(ch.tier)}</span></div>
-            <div class="num"><strong>${fmtNum(ch.followers.value)}</strong><span class="dt-sub" data-f="metricsExtra">ER ${fmtPct(ch.er.value)}</span></div>
+            <div class="num"><strong>${fmtNum(ch.followers.value)}</strong><span class="dt-sub" data-f="metrics">View TB ${fmtNum(ch.avgViews.value)} · ER ${fmtPct(ch.er.value)}</span></div>
             <div class="ch-mini-spark">${sparkline(ch.growth, 80, 26)}${trend(ch.growthPct)}</div></div>`; }).join("")}</div>
       </section>
       <section data-tile="brands" class="card">
@@ -219,10 +221,11 @@ function tabChannels(c) {
       <div class="card-head">
         ${plat(p)}<h2>${PLATFORMS[p].label} ${p === c.hero ? `<span class="badge badge-primary">Hero platform</span>` : ""} ${tierBadge(ch.tier)}</h2>
         <a class="btn btn-ghost btn-sm" href="${esc(ch.url)}" target="_blank" rel="noopener">${esc(ch.handle)} ${icon("external", 14)}</a>
-        ${can("edit") ? `<button class="btn btn-sm" type="button" data-act="edit-metrics" data-p="${p}">${icon("edit", 14)} Sửa tay</button>` : ""}
+        <button class="btn btn-sm" type="button" data-act="clips" data-p="${p}" data-tour="profile-clips">${icon("chart", 14)} ${can("edit") ? "Clip gần đây & chỉ số" : "Clip gần đây"}</button>
       </div>
       <div class="card-pad ch-grid">
-        ${(FEATURES.metricsExtra ? ["followers", "er", "avgViews"] : ["followers"]).map((m) => metric(METRIC_LABEL[m], ch[m], METRIC_FMT[m], act(m))).join("")}
+        ${(FEATURES.metrics ? ["followers", "er", "avgViews"] : ["followers"]).map((m) => metric(METRIC_LABEL[m], ch[m], METRIC_FMT[m], m === "followers" ? act(m) : "")).join("")}
+        ${FEATURES.metrics ? `<p class="metric-note faint">${ch.sample ? `View TB và ER tính từ ${ch.sample} clip gần nhất` : "Chưa có clip để tính view TB và ER"}${ch.followersSeen ? ` · nền tảng đang hiển thị ${fmtNum(ch.followersSeen)} follower` : ""}${ch.metricError ? ` · lần đọc gần nhất lỗi (${esc(ch.metricError)})` : ""}.</p>` : ""}
         <div class="metric" data-f="metricsExtra"><span class="metric-label">Tăng trưởng follower · 8 tháng</span>
           <span class="metric-value">${trend(ch.growthPct)} <span class="faint">/ 3 tháng gần nhất</span></span>
           ${sparkline(ch.growth, 260, 64)}

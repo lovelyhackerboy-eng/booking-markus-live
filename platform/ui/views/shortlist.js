@@ -126,7 +126,7 @@ function compareHtml(list) {
     ...(clientBrand ? [[`Đối thủ của ${clientBrand}`, () => null, (x) => (conflicts(x.c).length ? `<span class="badge badge-danger">${icon("alert", 12)} ${esc(conflicts(x.c).join(", "))}</span>` : `<span class="badge badge-success">✓ Không</span>`), 0]] : []),
     ["Audience", () => null, (x) => `${x.c.audience.female}% nữ · ${esc(x.c.audience.age)}<span class="dt-sub">${esc(x.c.audience.tags.join(", "))}</span>`, 0],
   ];
-  const LIVE_HIDE = FEATURES.metricsExtra ? [] : ["Engagement rate", "View trung bình", "Tăng trưởng 3 tháng", "Chi phí / view ước tính", "Working score", "Brand đã hợp tác", "Audience"];
+  const LIVE_HIDE = FEATURES.metricsExtra ? [] : [...(FEATURES.metrics ? [] : ["Engagement rate", "View trung bình", "Chi phí / view ước tính"]), "Tăng trưởng 3 tháng", "Working score", "Brand đã hợp tác", "Audience"];
   const rowsShown = ROWS.filter((r) => !LIVE_HIDE.includes(r[0]));
   const verdict = compareVerdict(cs, { allowPrice: price });
   return `

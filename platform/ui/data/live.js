@@ -8,7 +8,8 @@ import { tierOf } from "./catalog.js";
 export const API = (window.MK_CONFIG && window.MK_CONFIG.api) || "/v2/api";
 // Phần nào của prototype đã có dữ liệu / API thật. false = ẩn khỏi giao diện.
 export const FEATURES = {
-  metricsExtra: false, // ER, view trung bình, tăng trưởng, biểu đồ
+  metrics: true, // view trung bình + ER (tự tính từ clip gần đây: YouTube tự động, nền tảng khác nhập tay) + avatar
+  metricsExtra: false, // tăng trưởng follower, biểu đồ, working score
   audience: false,
   brands: false, // brand đã hợp tác, đối thủ
   content: false, // thumbnail bài đăng gần đây
@@ -53,11 +54,18 @@ const empty = () => ({ value: null, source: "sheet", updatedAt: null, verify: "u
 
 export function toCreator(a) {
   const channels = {};
+  const mt = a.metrics || {};
+  const msrc = (m) => (m.source === "auto" ? "crawler" : "manual");
   Object.entries(a.channels || {}).forEach(([p, ch]) => {
     const f = ch.followers ?? null;
+    const m = mt[p];
     channels[p] = {
       url: ch.url || "", handle: ch.label || "", tier: f ? tierOf(f) : "",
-      followers: metric(f, ch.followersSource, ch.followersUpdatedAt), er: empty(), avgViews: empty(), growth: [], growthPct: null,
+      followers: metric(f, ch.followersSource, ch.followersUpdatedAt),
+      er: m && m.er != null ? metric(Number(m.er), msrc(m), m.computedAt) : empty(),
+      avgViews: m && m.avgViews != null ? metric(m.avgViews, msrc(m), m.computedAt) : empty(),
+      sample: m ? m.sampleSize || 0 : 0, followersSeen: m ? m.followersSeen ?? null : null, metricError: m ? m.lastError || "" : "",
+      growth: [], growthPct: null,
     };
   });
   const order = Object.keys(channels).sort((x, y) => (channels[y].followers.value || 0) - (channels[x].followers.value || 0));
@@ -91,7 +99,8 @@ export function toCreator(a) {
       castingProfile: a.castingProfile, yearOfBirth: a.yearOfBirth, baseLocation: a.baseLocation, representation: a.representation,
       heroPlatform: a.heroPlatform, relationshipStatus: a.relationshipStatus, note: a.note, contact: a.contact || {},
     },
-    brands: [], labels: [], content: [], photoUrl: "",
+    brands: [], labels: [], content: [],
+    photoUrl: (mt[hero] && mt[hero].avatarUrl) || Object.values(mt).map((m) => m.avatarUrl).find(Boolean) || "",
     notes: (a.notes || []).map((n) => ({ at: n.createdAt, by: n.authorName || "", text: n.body, kind: n.kind || "" })),
     lastSynced: a.syncedAt || a.updatedAt, createdAt: a.syncedAt || a.updatedAt,
   };
