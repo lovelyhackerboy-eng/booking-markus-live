@@ -5,6 +5,8 @@
 // Uses the live app's own code (same Sheet read, same identity reconcile, same db.json lock) — nothing is re-implemented.
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 define('MKP', 1);
+if (getenv('MKV2_SHEET_ID')) define('MKP_SHEET_ID', getenv('MKV2_SHEET_ID')); // test copy
+if (getenv('MKV2_PHP_STATE_DIR')) define('MKP_STATE_DIR', getenv('MKV2_PHP_STATE_DIR')); // its own identity state, never the live db.json
 $root = getenv('MKP_PHP_ROOT') ?: '/home/thestvco/booking.markus.agency';
 require $root . '/_mk/core.php';
 require_once $root . '/_mk/auth.php';

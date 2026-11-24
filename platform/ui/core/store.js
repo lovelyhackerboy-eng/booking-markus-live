@@ -60,6 +60,8 @@ export function applySnapshot(s) {
   state.user = s.user;
   state.role = s.user.role;
   state.team = s.team || [];
+  FEATURES.sheetWrite = !!(s.features && s.features.sheetWrite);
+  FEATURES.addCreator = FEATURES.sheetWrite;
   TEAM.length = 0;
   TEAM.push(...state.team.map((p) => p.name).filter(Boolean).sort((a, b) => a.localeCompare(b, "vi")));
   state.creators = (s.creators || []).map(toCreator);

@@ -81,3 +81,20 @@ Xoá app trong Node selector + thư mục `~/booking.markus.agency/v2` + DB `the
 - `POST /v2/api/ai/search`: câu tìm kiếm → bộ lọc. Chỉ gửi câu hỏi + danh mục giá trị cho phép, không gửi dữ liệu creator. Lỗi / quá 12 giây → UI dùng bộ đọc theo luật.
 - `POST /v2/api/ai/agent` (vai trò có quyền sửa): trợ lý lên campaign, công cụ chạy ở server theo quyền người dùng. Gửi cho DeepSeek tên, ngành, khu vực, tier, follower, trạng thái quan hệ và (nếu có quyền) giá; **không bao giờ** gửi liên hệ hay ghi chú. AI chỉ đề xuất; người dùng bấm mới thêm vào Ứng viên.
 - Giới hạn: 30 lượt tìm / 15 lượt trợ lý mỗi người mỗi phút; mỗi lượt ghi 1 dòng `audit_log` (`ai.search`, `ai.agent`).
+
+## Đường dẫn UI theo mã build (21/11/2026)
+
+- UI được phục vụ ở `/v2/a/<BUILD_ID>/` (file thật nằm ở `public/app`, Next rewrite sang). `/v2` và `/v2/app/` chuyển hướng tới bản hiện tại; mã build cũ cũng chuyển về bản hiện tại; phần `#/...` của link được giữ.
+- Lý do: Passenger/LiteSpeed phục vụ thẳng thư mục `public/` và bỏ qua `headers()` của Next lẫn `.htaccess`, nên file JS không có `Cache-Control` và trình duyệt chạy code cũ sau deploy. Đường dẫn đổi theo build thì file được cache 1 năm (`immutable`) mà không bao giờ cũ.
+- Code UI không được viết cứng `/v2/app/...`; dùng đường dẫn tương đối (gốc là `<base href>`).
+- `deploy/package.sh` xoá gói cũ trước khi build: build lỗi thì không còn gì để đẩy nhầm lên hosting. Chạy deploy bằng `package.sh && … host-deploy.sh` để dừng ngay khi build lỗi.
+
+## Sửa / thêm creator ghi Google Sheet (21–22/11/2026)
+
+- Luồng: v2 gọi PHP CLI `bridge/sheet-write.php` (dùng chính gateway Google, khoá `sheet-write.lock` và mã nhận diện của app cũ) → ghi Sheet → nạp lại Sheet vào MariaDB (`lib/import/run.ts`, cùng logic với cron).
+- Bật/tắt: `SHEET_WRITE=on` trong `runtime.env` + restart app. Khi tắt: API trả 503, giao diện ẩn nút "Sửa thông tin" và màn "Thêm creator".
+- Không sửa được: tên creator, link kênh (công thức `HYPERLINK`, app cũ nhận diện creator qua đây), `Age`, `Age_Band`, `STT`. Thêm creator ghi link dạng `=HYPERLINK("url","nhãn")` giống các hàng cũ.
+- Chống ghi đè: trước khi ghi, kiểm hàng vẫn đúng creator (tên + link); mỗi ô phải còn đúng giá trị lần nhập trước (nếu ai vừa sửa trên Sheet → 409, không ghi, nạp lại giá trị mới); PHP kiểm lại lần nữa dưới khoá.
+- Kiểm tra nhanh (admin, chỉ đọc): `GET /v2/api/admin/sheet-check`.
+- Sao lưu Sheet: `php bridge/sheet-backup.php` → `~/markus-v2-state/sheet-backup-<thời điểm>.json` (giá trị + công thức + hyperlink). Đã sao lưu 21/11 23:21 trước khi làm tính năng.
+- Bản sao thử: Google Sheet "CREATOR_DB – bản thử ghi v2" (id `1vAJPb4a…`), trạng thái nhận diện riêng ở `~/markus-v2-state/php-state-copy/`. Chạy bridge với `MKV2_SHEET_ID=<id bản sao> MKV2_PHP_STATE_DIR=<thư mục đó>`. Bản sao còn 1 hàng thử "ZZ Test v2 …".

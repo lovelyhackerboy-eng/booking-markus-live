@@ -7,6 +7,8 @@ set -euo pipefail
 SRC="$(cd "$(dirname "$0")/.." && (pwd -W 2>/dev/null || pwd))"
 OUT="${1:-$SRC/deploy/out}"
 mkdir -p "$OUT"
+# Remove the previous archives first: if this build fails, there is nothing stale left to upload by mistake.
+rm -f "$OUT/v2-app.tar.gz" "$OUT/v2-deps.tar.gz" "$OUT/BUILD_ID"
 docker run --rm -v "$SRC:/src:ro" -v "$OUT:/dst" node:22-bookworm sh -c '
 set -e; umask 022; mkdir /b; cd /src
 tar --exclude=./node_modules --exclude=./.next --exclude=./dist --exclude=./deploy/out -cf - . | tar -C /b -xf -

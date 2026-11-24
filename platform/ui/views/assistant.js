@@ -47,12 +47,14 @@ export function openAssistant(list) {
   const msgs = (threads[key] = threads[key] || []);
   const o = openOverlay({
     kind: "drawer", wide: true,
-    title: `${icon("sparkles", 18)} Trợ lý AI${list ? " · " + list.name : ""}`,
+    // openOverlay escape tiêu đề (đúng, vì tên campaign do người dùng nhập) → chỉ truyền chữ; icon chèn riêng bên dưới.
+    title: `Trợ lý AI${list ? " · " + list.name : ""}`,
     body: `${listId ? `<div class="ai-brief row-wrap" id="ai-brief"></div>` : ""}<div class="ai-chat" id="ai-log"></div>
       <form class="ai-input" id="ai-form"><textarea class="input" id="ai-text" rows="2" placeholder="Mô tả brief: ngành, khu vực, kênh, ngân sách, số lượng…"></textarea>
       <button class="btn btn-primary" type="submit">${icon("sparkles", 16)} Gửi</button></form>
       <p class="faint" style="margin-top:6px">AI chỉ đề xuất. Không gửi thông tin liên hệ hay ghi chú nội bộ cho AI. Dữ liệu chưa có ER, view, audience.</p>`,
   });
+  $(".panel-head h2", o.el)?.insertAdjacentHTML("afterbegin", `${icon("sparkles", 18)} `);
   const log = $("#ai-log", o.el);
   let brief = null;
   const drawBrief = () => {

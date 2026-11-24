@@ -11,6 +11,7 @@ import { FAMILY, REL_STATUS, VIA, FORMATS, heroCh, rateFor } from "../core/filte
 import { summarize, lookalike } from "../ai/mock-ai.js";
 import { post, postZaloDraft } from "../ai/copilot.js";
 import { openLookalike } from "./lookalike.js";
+import { openEditCreator } from "./creator-form.js";
 import { openSaveMenu, saveLabel } from "./lists.js";
 import { note, redacted, avatar, plat, platChip, channelIcon, tierBadge, relBadge, repBadge, perfOf, stars, money, contact, metric, sparkline, trend, freshness, creatorCell, lockedCard, thumbs, brandStack, gauge, coverArt, emptyState, METRIC_FMT, METRIC_LABEL } from "../core/parts.js";
 import { companyOf } from "../core/filters.js";
@@ -51,6 +52,7 @@ export function render(root, params) {
         </div>
         <div class="profile-actions">
           <button class="btn btn-primary" type="button" data-save="${c.id}" aria-haspopup="menu">${saveLabel(c.id)}</button>
+          ${FEATURES.sheetWrite && can("edit") ? `<button class="btn" type="button" data-act="edit-sheet">${icon("edit", 18)} Sửa thông tin</button>` : ""}
           <button class="btn btn-ai" type="button" data-act="lookalike">${icon("similar", 18)} Tìm creator tương tự</button>
           <button class="btn btn-ai" type="button" data-act="zalo">${icon("message", 16)} Soạn tin Zalo</button>
         </div>
@@ -93,6 +95,7 @@ export function render(root, params) {
   delegate(root, "click", "[data-act]", (e, b) => {
     const act = b.dataset.act;
     if (act === "lookalike") openLookalike(c);
+    if (act === "edit-sheet") openEditCreator(c);
     if (act === "zalo") postZaloDraft(c);
     if (act === "summary") aiSummary(c);
     if (act === "compare") aiCompare(c);

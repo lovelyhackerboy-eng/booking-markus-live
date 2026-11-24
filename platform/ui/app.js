@@ -12,7 +12,7 @@ import { route, start, refresh, current } from "./core/router.js";
 import { initCopilot, openCopilot, refreshContext, resetCopilot } from "./ai/copilot.js";
 import * as discovery from "./views/discovery.js";
 import * as profile from "./views/profile.js";
-import * as addCreator from "./views/add-creator.js";
+import * as creatorForm from "./views/creator-form.js";
 import * as lists from "./views/lists.js";
 import * as shortlist from "./views/shortlist.js";
 import * as campaigns from "./views/campaigns.js";
@@ -25,7 +25,9 @@ route("kham-pha", discovery, "kham-pha");
 route("creator/:id", profile, "kham-pha");
 // Màn chưa bật ở bản thật (FEATURES) → trang báo "chưa có", kể cả khi gõ thẳng URL.
 const notYet = (what) => ({ render: (el) => { el.innerHTML = `<div class="card empty"><strong>${what} chưa có ở bản này</strong><p class="muted">Sẽ bật ở đợt tiếp theo. Hiện làm việc này trên Google Sheet hoặc app cũ.</p><a class="btn" href="#/kham-pha">Về Khám phá</a></div>`; } });
-route("them-creator", FEATURES.addCreator ? addCreator : notYet("Thêm creator"), "them-creator");
+// Bật / tắt theo máy chủ (SHEET_WRITE) — quyết định lúc vẽ màn, sau khi đã nạp snapshot.
+const addCreatorRoute = { render: (el, p) => (FEATURES.sheetWrite ? creatorForm.render(el, p) : notYet("Thêm creator").render(el, p)), copilot: () => ({ label: "Thêm creator", actions: [] }) };
+route("them-creator", addCreatorRoute, "them-creator");
 route("campaign", campaigns, "campaign");
 route("campaign/:id", campaigns, "campaign");
 // Link cũ (#/shortlist, #/danh-sach) vẫn chạy: chuyển sang bước tương ứng của campaign đang làm.

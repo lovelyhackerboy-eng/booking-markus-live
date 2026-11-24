@@ -8,6 +8,7 @@ import { listBookings } from "@/lib/bookings/repo";
 import { listCampaigns, visibleCampaignIds } from "@/lib/campaigns/repo";
 import { loadCreators } from "@/lib/creators/repo";
 import { handle, json } from "@/lib/http";
+import { sheetWriteEnabled } from "@/lib/sheet/bridge";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export const GET = handle(async (req: Request) => {
     ok: true,
     user: { email: u.email, name: u.name, role: u.role, perms: PERMS[u.role] },
     csrf: u.csrf,
+    features: { sheetWrite: sheetWriteEnabled() },
     team,
     creators,
     campaigns,

@@ -13,7 +13,8 @@ export const FEATURES = {
   brands: false, // brand đã hợp tác, đối thủ
   content: false, // thumbnail bài đăng gần đây
   dataSync: false, // màn "Dữ liệu & đồng bộ", hàng chờ duyệt
-  addCreator: false, // thêm / sửa creator (chờ bật ghi Sheet)
+  addCreator: false, // = sheetWrite (máy chủ quyết định, nạp từ snapshot)
+  sheetWrite: false, // sửa / thêm creator ghi Google Sheet — bật khi máy chủ có SHEET_WRITE=on
   editMetrics: false, // sửa follower, thêm giá, đổi trạng thái quan hệ, label
   copilot: false, // khung Copilot của prototype (trả lời giả) — thay bằng Trợ lý AI campaign bên dưới
   aiSearch: true, // "Tìm bằng AI" gọi DeepSeek (/api/ai/search), lỗi thì dùng bộ đọc theo luật
@@ -33,6 +34,7 @@ export async function api(path, { method = "GET", body } = {}) {
   if (!res.ok) {
     const err = new Error(data.error || "http_" + res.status);
     err.status = res.status;
+    err.body = data; // vd. conflicts[] và creator mới nạp lại khi sửa Sheet bị xung đột
     throw err;
   }
   if (data.csrf) csrf = data.csrf;
@@ -83,6 +85,12 @@ export function toCreator(a) {
     },
     representation: rep, rep: /self|cá nhân|tự quản/i.test(rep) || !rep ? "self" : "company", companyId: "",
     note: a.note || "",
+    // Giá trị thô đúng như trên Sheet — để form sửa điền sẵn (views/creator-form.js).
+    raw: {
+      tier: a.tier, primaryCategory: a.primaryCategory, secondaryCategory: a.secondaryCategory, creatorType: a.creatorType,
+      castingProfile: a.castingProfile, yearOfBirth: a.yearOfBirth, baseLocation: a.baseLocation, representation: a.representation,
+      heroPlatform: a.heroPlatform, relationshipStatus: a.relationshipStatus, note: a.note, contact: a.contact || {},
+    },
     brands: [], labels: [], content: [], photoUrl: "",
     notes: (a.notes || []).map((n) => ({ at: n.createdAt, by: n.authorName || "", text: n.body, kind: n.kind || "" })),
     lastSynced: a.syncedAt || a.updatedAt, createdAt: a.syncedAt || a.updatedAt,

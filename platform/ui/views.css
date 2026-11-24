@@ -389,3 +389,10 @@ a.chan-item:hover .num { text-decoration: underline; }
 .ai-input textarea { flex: 1; resize: vertical; min-height: 44px; }
 
 .ai-brief { gap: 8px; align-items: center; margin-bottom: 10px; }
+
+/* ---------- Sửa / thêm creator (views/creator-form.js) ---------- */
+.cf-group { border: 1px solid var(--border, rgba(127,127,127,.25)); border-radius: var(--radius-md, 12px); padding: 12px 14px 14px; margin: 0; }
+.cf-group legend { padding: 0 6px; font-weight: 600; }
+.cf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; }
+.cf-grid textarea { min-height: 44px; resize: vertical; }
+.cf-msg { color: var(--danger, #c0392b); }
