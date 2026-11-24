@@ -55,6 +55,12 @@ export function assertLocalDatabase(url: string | undefined, nodeEnv: string | u
 
 const TABLES_IN_ORDER = [
   s.sessions,
+  s.postSnapshots,
+  s.posts,
+  s.creatorClips,
+  s.creatorMetrics,
+  s.settings,
+  s.campaignSteps,
   s.notes,
   s.contacts,
   s.rates,

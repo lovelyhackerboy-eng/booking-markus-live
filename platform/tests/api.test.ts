@@ -246,8 +246,13 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       c = (await (await op(id, { op: "steps", steps: [{ key: "none", label: "Mới" }, { key: "closed", label: "Chốt", final: true }], moveTo: "none" })).json()).campaign;
       expect(c.entries.every((e: { stage: string }) => e.stage === "none")).toBe(true);
 
-      // viewer never sees the budget
-      expect((await getText("/api/campaigns", "viewer")).text).not.toContain("90000000");
+      // a viewer who CAN see a campaign (invited member of L1) still never gets its budget
+      expect((await op("L1", { op: "update", budget: 77700000 })).status).toBe(200);
+      const vt = (await getText("/api/campaigns", "viewer")).text;
+      expect(vt).toContain("Vinamilk");
+      expect(vt).not.toContain("77700000");
+      expect(vt).not.toContain('"budget"');
+      expect((await getText("/api/campaigns", "planner")).text).toContain("77700000");
       // planner who is not owner/member cannot change status; owner can run → done
       expect((await op(id, { op: "setStatus", status: "running" }, "plannerOther")).status).toBe(404);
       c = (await (await op(id, { op: "setStatus", status: "running" })).json()).campaign;
@@ -261,6 +266,128 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       const del = await op(id, { op: "delete" });
       expect(del.status).toBe(200);
       expect((await getText("/api/campaigns", "planner")).text).not.toContain("Lifecycle test");
+    });
+  });
+
+  describe("metrics, posts and reports", () => {
+    const call = async (as: string, mod: string, method: "GET" | "POST", path: string, body?: unknown, id?: string) => {
+      const m = (await import(mod)) as Record<string, (r: Request, c?: unknown) => Promise<Response>>;
+      const headers: Record<string, string> = method === "POST" ? { origin: ORIGIN, "x-csrf-token": cookies[as].csrf, "content-type": "application/json" } : {};
+      const r = req(path, { as, method, headers, body });
+      const res = await (id ? m[method](r, { params: Promise.resolve({ id }) }) : m[method](r));
+      return { status: res.status, text: await res.clone().text(), json: (await res.json().catch(() => ({}))) as Record<string, any> };
+    };
+    const CLIPS = "@/app/api/creators/[id]/clips/route";
+    const POSTS = "@/app/api/campaigns/[id]/posts/route";
+    const REPORT = "@/app/api/campaigns/[id]/report/route";
+    const OVERVIEW = "@/app/api/reports/route";
+    const SETTINGS = "@/app/api/admin/metrics/route";
+    const CAMP = "@/app/api/campaigns/route";
+    const CAMP_ID = "@/app/api/campaigns/[id]/route";
+    const day = (iso: string) => new Date(iso);
+
+    it("only admin changes the formula; changing it recomputes from stored clips", async () => {
+      const s = (await call("planner", SETTINGS, "GET", "/api/admin/metrics")).json.settings;
+      expect(s.method).toBe("median");
+      expect((await call("planner", SETTINGS, "POST", "/api/admin/metrics", { settings: { ...s, method: "mean" } })).status).toBe(403);
+      expect((await call("admin", SETTINGS, "POST", "/api/admin/metrics", { settings: { ...s, minSample: 40 } })).status).toBe(422);
+      const ok = await call("admin", SETTINGS, "POST", "/api/admin/metrics", { settings: { ...s, method: "mean", minSample: 3, maxAgeDays: 0 } });
+      expect(ok.status).toBe(200);
+    });
+
+    it("manual clips give average views + ER; viewer can read but not write", async () => {
+      const add = (views: number, likes: number, n: number) =>
+        call("planner", CLIPS, "POST", "/api/creators/CR-0005/clips", { op: "add", platform: "tiktok", url: `https://www.tiktok.com/@x/video/90000000000000000${n}`, views, likes, comments: 0, shares: 0, publishedAt: "2026-11-2" + n }, "CR-0005");
+      await add(1000, 100, 1);
+      await add(2000, 100, 2);
+      const r = await add(3000, 300, 3);
+      expect(r.status).toBe(200);
+      expect(r.json.creator.metrics.tiktok).toMatchObject({ avgViews: 2000, sampleSize: 3, source: "manual" });
+      expect(r.json.creator.metrics.tiktok.er).toBeCloseTo((10 + 5 + 10) / 3, 1);
+      // same URL again updates the same clip
+      const again = await call("planner", CLIPS, "POST", "/api/creators/CR-0005/clips", { op: "add", platform: "tiktok", url: "https://www.tiktok.com/@x/video/900000000000000003?lang=vi", views: 6000, likes: 600 }, "CR-0005");
+      expect(again.json.clips.filter((c: { platform: string }) => c.platform === "tiktok")).toHaveLength(3);
+      expect(again.json.creator.metrics.tiktok.avgViews).toBe(3000);
+      expect((await call("viewer", CLIPS, "POST", "/api/creators/CR-0005/clips", { op: "remove", id: again.json.clips[0].id }, "CR-0005")).status).toBe(403);
+      const v = await call("viewer", CLIPS, "GET", "/api/creators/CR-0005/clips", undefined, "CR-0005");
+      expect(v.status).toBe(200);
+      expect(leaks(v.text)).toEqual([]);
+      expect(v.text).not.toContain("enteredBy");
+      expect(JSON.parse((await getText("/api/creators/CR-0005", "viewer")).text).creator.metrics.tiktok.avgViews).toBe(3000);
+      expect((await call("planner", CLIPS, "POST", "/api/creators/CR-0005/clips", { op: "add", platform: "tiktok", url: "http://insecure.example/x", views: 1 }, "CR-0005")).status).toBe(422);
+    });
+
+    it("YouTube: channel refresh, then auto-tracking inside the window; excluded posts stay out", async () => {
+      const { setYoutubeFetcherForTests } = await import("@/lib/metrics/youtube");
+      const { channels } = await import("@/lib/db/schema");
+      const CID = "UCabcdefghijklmnopqrstuv";
+      const vid = (id: string, pub: string, views: number, likes: number) => `<entry><yt:videoId>${id}</yt:videoId><title>${id}</title><published>${pub}</published><media:starRating count="${likes}"/><media:statistics views="${views}"/></entry>`;
+      let views = 5000;
+      setYoutubeFetcherForTests(async (url) => {
+        if (url.startsWith("https://www.youtube.com/@fakech")) return { status: 200, text: `<html>"externalId":"${CID}" <meta property="og:image" content="https://yt3.googleusercontent.com/av=s900"> "subscriberCountText":{"simpleText":"12.5K subscribers"}</html>` };
+        if (url.includes("feeds/videos.xml?channel_id=" + CID))
+          return { status: 200, text: `<feed>${vid("inWindow001", "2026-12-20T16:00:00+00:00", views, 100)}${vid("inWindow002", "2026-12-05T03:00:00+00:00", 3000, 30)}${vid("outWindow01", "2026-12-20T17:30:00+00:00", 999, 9)}${vid("oldVideo001", "2026-11-01T03:00:00+00:00", 1000, 10)}</feed>` };
+        return { status: 404, text: "" };
+      });
+      await db().insert(channels).values({ creatorId: "CR-0006", platform: "youtube", url: "https://www.youtube.com/@fakech", label: "fake" }).onDuplicateKeyUpdate({ set: { url: "https://www.youtube.com/@fakech" } });
+      const ref = await call("planner", CLIPS, "POST", "/api/creators/CR-0006/clips", { op: "refresh" }, "CR-0006");
+      expect(ref.status).toBe(200);
+      expect(ref.json.creator.metrics.youtube).toMatchObject({ avgViews: 2500, followersSeen: 12500, avatarUrl: "https://yt3.googleusercontent.com/av=s900", source: "auto" });
+
+      const id = (await call("planner", CAMP, "POST", "/api/campaigns", { name: "Track test", brand: "B" })).json.campaign.id as string;
+      await call("planner", CAMP_ID, "POST", `/api/campaigns/${id}`, { op: "addEntry", creatorId: "CR-0006" }, id);
+      await call("planner", CAMP_ID, "POST", `/api/campaigns/${id}`, { op: "addEntry", creatorId: "CR-0005" }, id);
+      await call("planner", CAMP_ID, "POST", `/api/campaigns/${id}`, { op: "setStage", creatorId: "CR-0006", stage: "closed" }, id);
+      await call("planner", CAMP_ID, "POST", `/api/campaigns/${id}`, { op: "update", autoTrack: true, trackFrom: "2026-12-01", trackTo: "2026-12-20", kpiViews: 20000 }, id);
+      const t1 = await call("planner", POSTS, "POST", `/api/campaigns/${id}/posts`, { op: "refresh" }, id);
+      expect(t1.status).toBe(200);
+      expect(t1.json.result).toMatchObject({ added: 2, creators: 1 });
+      expect(t1.json.posts.map((p: { externalId: string }) => p.externalId).sort()).toEqual(["inWindow001", "inWindow002"]);
+      // manual post for a TikTok creator in the campaign; not for a creator outside it
+      expect((await call("planner", POSTS, "POST", `/api/campaigns/${id}/posts`, { op: "add", creatorId: "CR-0005", url: "https://www.tiktok.com/@x/video/777", views: 4000, likes: 40, postedAt: "2026-12-03" }, id)).status).toBe(200);
+      expect((await call("planner", POSTS, "POST", `/api/campaigns/${id}/posts`, { op: "add", creatorId: "CR-0001", url: "https://www.tiktok.com/@x/video/778", views: 1 }, id)).status).toBe(422);
+      expect((await call("planner", POSTS, "POST", `/api/campaigns/${id}/posts`, { op: "add", creatorId: "CR-0005", url: "https://www.tiktok.com/@x/video/777", views: 1 }, id)).status).toBe(409);
+      // remove an auto post → excluded, and a new refresh does not bring it back
+      const auto = t1.json.posts.find((p: { externalId: string }) => p.externalId === "inWindow002");
+      await call("planner", POSTS, "POST", `/api/campaigns/${id}/posts`, { op: "remove", id: auto.id }, id);
+      views = 8000;
+      const t2 = await call("planner", POSTS, "POST", `/api/campaigns/${id}/posts`, { op: "refresh" }, id);
+      expect(t2.json.result).toMatchObject({ added: 0, updated: 1 });
+      expect(t2.json.posts).toHaveLength(3);
+      expect(t2.json.posts.find((p: { id: string }) => p.id === auto.id).excluded).toBe(1);
+
+      const rep = await call("planner", REPORT, "GET", `/api/campaigns/${id}/report`, undefined, id);
+      expect(rep.status).toBe(200);
+      expect(rep.json.campaign).toMatchObject({ views: 12000, posts: 2, booked: 1, kpiViews: 20000, kpiPct: 60 });
+      expect(rep.json.campaign).toHaveProperty("cost");
+      expect(rep.json.rows.find((r: { creatorId: string }) => r.creatorId === "CR-0006")).toMatchObject({ views: 8000, booked: true, expectedViews: 3250 }); // re-read after the 2nd refresh: (8000+3000+999+1000)/4
+      // hidden campaign: 404 for others, viewer cannot write posts
+      expect((await call("plannerOther", REPORT, "GET", `/api/campaigns/${id}/report`, undefined, id)).status).toBe(404);
+      expect((await call("plannerOther", POSTS, "GET", `/api/campaigns/${id}/posts`, undefined, id)).status).toBe(404);
+      expect((await call("viewer", POSTS, "POST", `/api/campaigns/${id}/posts`, { op: "refresh" }, id)).status).toBe(403);
+      setYoutubeFetcherForTests(async () => ({ status: 404, text: "" }));
+    });
+
+    it("reports never give a viewer money fields; overview has the team table only for allCampaigns roles", async () => {
+      const v = await call("viewer", REPORT, "GET", "/api/campaigns/L1/report", undefined, "L1");
+      expect(v.status).toBe(200);
+      expect(leaks(v.text)).toEqual([]);
+      for (const k of ['"cost"', '"cpv"', '"cpm"', '"budget"', '"budgetPct"']) expect(v.text).not.toContain(k);
+      const p = await call("planner", REPORT, "GET", "/api/campaigns/L1/report", undefined, "L1");
+      expect(p.text).toContain('"cost"');
+      const ov = await call("viewer", OVERVIEW, "GET", "/api/reports");
+      expect(leaks(ov.text)).toEqual([]);
+      for (const k of ['"cost"', '"cpv"', '"budget"']) expect(ov.text).not.toContain(k);
+      expect(ov.json.team).toBeUndefined();
+      expect(ov.json.campaigns.every((c: { name: string }) => c.name !== "Tech reviewers")).toBe(true);
+      const pl = await call("planner", OVERVIEW, "GET", "/api/reports");
+      expect(pl.json.scope).toBe("mine");
+      expect(pl.json.team).toBeUndefined();
+      expect(pl.text).not.toContain("Tech reviewers");
+      const mg = await call("manager", OVERVIEW, "GET", "/api/reports");
+      expect(mg.json.scope).toBe("team");
+      expect(mg.json.team.length).toBeGreaterThan(0);
+      expect(mg.text).toContain("Tech reviewers");
     });
   });
 

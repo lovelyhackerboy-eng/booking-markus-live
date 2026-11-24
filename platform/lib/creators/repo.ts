@@ -1,7 +1,7 @@
 // Creator reads. Tables a role may not see are NOT queried at all (rates without `price`, contacts/notes without `contact`).
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "../db/client";
-import { channels, contacts, creators, notes, rates } from "../db/schema";
+import { channels, contacts, creatorMetrics, creators, notes, rates } from "../db/schema";
 import { can, type Role } from "../auth/roles";
 import { serializeCreator } from "./serialize";
 
@@ -23,6 +23,7 @@ export async function loadCreators(role: Role, ids?: string[], ownerNames?: Map<
   if (!rows.length) return [];
   const keys = rows.map((r) => r.id);
   const chs = groupBy(await db().select().from(channels).where(inArray(channels.creatorId, keys)), (r) => r.creatorId);
+  const mts = groupBy(await db().select().from(creatorMetrics).where(inArray(creatorMetrics.creatorId, keys)), (r) => r.creatorId);
   const rts = can(role, "price")
     ? groupBy(await db().select().from(rates).where(inArray(rates.creatorId, keys)), (r) => r.creatorId)
     : null;
@@ -40,6 +41,7 @@ export async function loadCreators(role: Role, ids?: string[], ownerNames?: Map<
       {
         creator: c,
         channels: chs.get(c.id) ?? [],
+        metrics: mts.get(c.id) ?? [],
         rates: rts?.get(c.id) ?? [],
         contact: cts?.get(c.id) ?? null,
         notes: (nts?.get(c.id) ?? []).filter((n) => !n.campaignId || !!visibleCampaigns?.has(n.campaignId)),

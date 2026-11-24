@@ -309,6 +309,7 @@ export const posts = mysqlTable(
     comments: bigint("comments", { mode: "number" }),
     shares: bigint("shares", { mode: "number" }),
     source: mysqlEnum("source", SOURCE_VALUES).notNull(),
+    excluded: int("excluded").notNull().default(0), // removed by the team: kept so auto-tracking does not re-add it
     lastFetchedAt: ts("last_fetched_at"),
     createdBy: varchar("created_by", { length: 190 }),
     createdAt: ts("created_at").notNull(),

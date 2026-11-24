@@ -18,7 +18,7 @@ test -f .next/standalone/server.js
 mkdir /pkg; cp -a .next/standalone/. /pkg/; mkdir -p /pkg/.next/static; cp -a .next/static/. /pkg/.next/static/
 [ -d public ] && { mkdir -p /pkg/public; cp -a public/. /pkg/public/; } || true
 cp deploy/start.cjs /pkg/; cp -a drizzle /pkg/drizzle; cp -a bridge /pkg/bridge
-mkdir -p /pkg/dist; cp dist/migrate.cjs dist/import-sheet.cjs /pkg/dist/
+mkdir -p /pkg/dist; cp dist/migrate.cjs dist/import-sheet.cjs dist/metrics-cron.cjs /pkg/dist/
 rm -rf /pkg/deploy /pkg/tests /pkg/seed /pkg/scripts /pkg/docker /pkg/docker-compose.dev.yml /pkg/*.md /pkg/lib /pkg/app
 mv /pkg/node_modules /deps
 rm -f /dst/v2-app.tar.gz /dst/v2-deps.tar.gz

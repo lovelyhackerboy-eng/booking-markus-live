@@ -1,7 +1,7 @@
 // The ONLY place creator data is shaped for the client. Every column has a class; a column is sent only when the
 // caller holds the matching permission. Adding a column to the schema without classifying it fails typecheck
 // (`satisfies Record<keyof …>`), and an unknown class is never sent.
-import type { channels, contacts, creators, notes, rates } from "../db/schema";
+import type { channels, contacts, creatorMetrics, creators, notes, rates } from "../db/schema";
 import { can, type Role } from "../auth/roles";
 
 type Cls = "public" | "price" | "contact" | "hidden";
@@ -10,6 +10,7 @@ type Channel = typeof channels.$inferSelect;
 type Rate = typeof rates.$inferSelect;
 type Contact = typeof contacts.$inferSelect;
 type Note = typeof notes.$inferSelect;
+type Metric = typeof creatorMetrics.$inferSelect;
 
 // `contact` = internal working data: contact details AND free text / relationship judgements, which in practice
 // carry phone numbers, prices and opinions about the creator. Viewers (external guests) never get it.
@@ -84,6 +85,20 @@ export const NOTE_FIELDS = {
   createdAt: "contact",
 } as const satisfies Record<keyof Note, Cls>;
 
+// Computed from public clips (YouTube RSS or numbers typed in by the team). lastError is internal.
+export const METRIC_FIELDS = {
+  creatorId: "hidden",
+  platform: "hidden",
+  avgViews: "public",
+  er: "public",
+  sampleSize: "public",
+  followersSeen: "public",
+  avatarUrl: "public",
+  source: "public",
+  lastError: "contact",
+  computedAt: "public",
+} as const satisfies Record<keyof Metric, Cls>;
+
 const allowed = (cls: Cls, role: Role) =>
   cls === "public" || (cls === "price" && can(role, "price")) || (cls === "contact" && can(role, "contact"));
 
@@ -99,11 +114,13 @@ export type CreatorParts = {
   rates?: Rate[];
   contact?: Contact | null;
   notes?: Note[];
+  metrics?: Metric[];
 };
 
 export function serializeCreator(p: CreatorParts, role: Role) {
   const out: Record<string, unknown> = pick(p.creator, CREATOR_FIELDS, role);
   out.channels = Object.fromEntries(p.channels.map((c) => [c.platform, pick(c, CHANNEL_FIELDS, role)]));
+  out.metrics = Object.fromEntries((p.metrics ?? []).map((m) => [m.platform, pick(m, METRIC_FIELDS, role)]));
   if (can(role, "price")) out.rates = (p.rates ?? []).map((r) => pick(r, RATE_FIELDS, role));
   if (can(role, "contact")) {
     out.contact = p.contact ? pick(p.contact, CONTACT_FIELDS, role) : null;

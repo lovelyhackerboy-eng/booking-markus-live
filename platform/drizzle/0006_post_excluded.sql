@@ -1,0 +1,1 @@
+ALTER TABLE `posts` ADD `excluded` int DEFAULT 0 NOT NULL;

@@ -61,7 +61,7 @@ type Actor = Pick<CurrentUser, "email" | "name" | "role">;
 const audit = (actor: Actor, action: string, target: string, after: unknown) =>
   db().insert(auditLog).values({ at: new Date(), actorEmail: actor.email, action, target, after: JSON.stringify(after).slice(0, 60000) });
 
-async function visibleCampaign(actor: Actor, id: string) {
+export async function visibleCampaign(actor: Actor, id: string) {
   const [c] = await db().select().from(campaigns).where(and(eq(campaigns.id, id), visibleWhere(actor))).limit(1);
   if (!c) fail(404, "not_found");
   return c!;
