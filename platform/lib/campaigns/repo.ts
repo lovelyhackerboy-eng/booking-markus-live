@@ -4,6 +4,7 @@ import { db } from "../db/client";
 import { campaignCandidates, campaignEntries, campaignMembers, campaigns, users } from "../db/schema";
 import { can } from "../auth/roles";
 import type { CurrentUser } from "../auth/session";
+import { stepsOf } from "./steps";
 
 export function visibleWhere(u: Pick<CurrentUser, "email" | "role">) {
   const live = isNull(campaigns.archivedAt);
@@ -28,6 +29,9 @@ export async function listCampaigns(u: Pick<CurrentUser, "email" | "role">) {
     db().select().from(campaignCandidates).where(inArray(campaignCandidates.campaignId, ids)),
     db().select({ email: users.email, name: users.name }).from(users),
   ]);
+  const steps = await stepsOf(ids);
+  const price = can(u.role, "price");
+  const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
   const nameOf = new Map(people.map((p) => [p.email, p.name]));
   return rows.map((c) => ({
     id: c.id,
@@ -38,10 +42,21 @@ export async function listCampaigns(u: Pick<CurrentUser, "email" | "role">) {
     canManage: c.ownerEmail === u.email || can(u.role, "allCampaigns"),
     members: mem.filter((m) => m.campaignId === c.id).map((m) => nameOf.get(m.email) ?? null),
     kpiViews: c.kpiViews,
+    status: c.status,
+    description: c.description,
+    budget: price ? c.budget : undefined,
+    startDate: day(c.startDate),
+    endDate: day(c.endDate),
+    autoTrack: !!c.autoTrack,
+    trackFrom: day(c.trackFrom),
+    trackTo: day(c.trackTo),
+    doneAt: c.doneAt,
+    steps: steps.get(c.id) ?? [],
     candidates: cand.filter((x) => x.campaignId === c.id).map((x) => ({ creatorId: x.creatorId, sow: x.sow })),
     entries: ent
       .filter((x) => x.campaignId === c.id)
-      .map((x) => ({ creatorId: x.creatorId, stage: x.stage, addedAt: x.addedAt })),
+      .sort((a, b) => a.position - b.position || +a.addedAt - +b.addedAt)
+      .map((x) => ({ creatorId: x.creatorId, stage: x.stage, position: x.position, addedAt: x.addedAt })),
     createdAt: c.createdAt,
   }));
 }

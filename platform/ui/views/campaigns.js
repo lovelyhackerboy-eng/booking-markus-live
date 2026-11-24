@@ -4,28 +4,31 @@
 // Thân của từng bước do views/shortlist.js (Ứng viên) và views/lists.js (Liên hệ) vẽ.
 // MVP live: 1 campaign = 1 bản ghi workflow "campaigns" của app cũ (xem PLAN mục 11) — app cũ vẫn mở được cùng bản ghi.
 
-import { $, esc, icon, delegate, openOverlay, toast, fmtNum } from "../core/ui.js";
-import { state, can, me, getCreator, visibleLists, isMine, getList, setActiveList, shortlistOf, canManageList, setMembers } from "../core/store.js";
+import { $, esc, icon, delegate, openOverlay, toast, fmtNum, fmtDate } from "../core/ui.js";
+import { state, can, me, getCreator, visibleLists, isMine, getList, setActiveList, shortlistOf, canManageList, setMembers, setCampaignStatus, deleteCampaign } from "../core/store.js";
+import { FEATURES, CAMPAIGN_STATUS, finalStep } from "../data/live.js";
+import { openCampaignSettings } from "./campaign-settings.js";
 import { TEAM } from "../data/catalog.js";
 import { pageHead, emptyState } from "../core/parts.js";
 import { openAssistant } from "./assistant.js";
-import { FEATURES } from "../data/live.js";
 import { refresh } from "../core/router.js";
 import { post } from "../ai/copilot.js";
 import * as shortlist from "./shortlist.js";
 import * as lists from "./lists.js";
 
-let root = null, scope = "all", ownerF = ""; // bộ lọc màn tổng (chỉ Quản lý / Admin có)
+let root = null, scope = "all", ownerF = "", statusF = ""; // bộ lọc màn tổng
 
 const viewsOf = (ids) => ids.map(getCreator).filter(Boolean).reduce((s, c) => s + c.channels[c.hero].avgViews.value, 0);
 function stats(l) {
   const cand = shortlistOf(l.id).map((x) => x.id), ent = l.entries.map((e) => e.id);
-  return { cand: cand.length, candViews: viewsOf(cand), ent: ent.length, views: viewsOf(ent), booked: l.entries.filter((e) => e.stage === "closed").length };
+  return { cand: cand.length, candViews: viewsOf(cand), ent: ent.length, views: viewsOf(ent), booked: l.entries.filter((e) => e.stage === finalStep(l)).length };
 }
 const pct = (v, kpi) => (kpi ? Math.round((v / kpi) * 100) : null);
 const barCls = (p) => (p == null ? "" : p >= 100 ? "bar-success" : p >= 60 ? "" : "bar-warning");
 const isMember = (l) => (l.members || []).includes(me());
 const roleTag = (l) => (isMine(l) ? `<span class="badge badge-primary">Bạn phụ trách</span>` : isMember(l) ? `<span class="badge">Bạn được mời</span>` : "");
+const statusBadge = (l) => { const st = CAMPAIGN_STATUS[l.status] || CAMPAIGN_STATUS.draft; return `<span class="badge badge-${st.tone} camp-status camp-status-${l.status}" title="${esc(st.desc)}">${esc(st.label)}</span>`; };
+const period = (l) => (l.startDate || l.endDate ? `${l.startDate ? fmtDate(l.startDate) : "?"} → ${l.endDate ? fmtDate(l.endDate) : "?"}` : "");
 const people = (l) => `phụ trách <strong>${esc(l.owner)}</strong>${(l.members || []).length ? ` · thành viên ${esc(l.members.join(", "))}` : ""}`;
 
 export function render(el, p) {
@@ -39,7 +42,10 @@ function renderIndex(el) {
   const all = can("allCampaigns");
   const vis = visibleLists();
   const owners = [...new Set(vis.map((l) => l.owner))].sort();
-  const shown = !all ? vis : scope === "mine" ? vis.filter((l) => isMine(l) || isMember(l)) : vis.filter((l) => !ownerF || l.owner === ownerF);
+  const scoped = !all ? vis : scope === "mine" ? vis.filter((l) => isMine(l) || isMember(l)) : vis.filter((l) => !ownerF || l.owner === ownerF);
+  const shown = scoped.filter((l) => !statusF || l.status === statusF);
+  const order = { running: 0, draft: 1, done: 2 };
+  shown.sort((a, b) => order[a.status] - order[b.status] || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   el.innerHTML = `<div class="page">
     ${pageHead("Campaign", all
       ? "Vai trò của bạn thấy mọi campaign của team. Mỗi campaign đi 2 bước: <strong>Ứng viên</strong> → bấm Duyệt → <strong>Liên hệ</strong> tới khi chốt booking."
@@ -52,19 +58,25 @@ function renderIndex(el) {
       </div>
       ${scope === "all" ? `<label class="faint" for="cp-owner">Người phụ trách</label><select class="select" id="cp-owner" style="width:auto"><option value="">Tất cả</option>${owners.map((o) => `<option ${o === ownerF ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>` : ""}
     </div>` : ""}
+    <div class="segmented" role="group" aria-label="Lọc theo trạng thái" data-tour="camp-status-filter">
+      <button type="button" data-status="" aria-pressed="${!statusF}">Tất cả (${scoped.length})</button>
+      ${Object.entries(CAMPAIGN_STATUS).map(([k, st]) => `<button type="button" data-status="${k}" aria-pressed="${statusF === k}">${esc(st.label)} (${scoped.filter((l) => l.status === k).length})</button>`).join("")}
+    </div>
     ${shown.length ? `<div class="camp-grid">${shown.map(card).join("")}</div>`
       : emptyState("list", vis.length ? "Không có campaign khớp bộ lọc" : "Bạn chưa theo dõi campaign nào", vis.length ? "Đổi phạm vi hoặc người phụ trách ở trên." : can("edit") ? "Tạo campaign mới, hoặc nhờ người phụ trách mời bạn làm thành viên." : "Nhờ người phụ trách campaign mời bạn làm thành viên.",
         can("edit") && !vis.length ? `<button class="btn btn-primary" type="button" data-act="new">${icon("plus", 16)} Campaign mới</button>` : "")}
   </div>`;
   delegate(el, "click", "[data-act=new]", () => lists.openNewList());
   delegate(el, "click", "[data-scope]", (e, b) => { scope = b.dataset.scope; refresh(); });
+  delegate(el, "click", "[data-status]", (e, b) => { statusF = b.dataset.status; refresh(); });
   $("#cp-owner", el)?.addEventListener("change", (e) => { ownerF = e.target.value; refresh(); });
 }
 function card(l) {
   const s = stats(l), k = pct(s.views, l.kpiViews);
   return `<a class="card card-pad camp-card" href="#/campaign/${l.id}?tab=ung-vien" ${l.id === state.activeListId ? 'aria-current="true"' : ""}>
-    <span class="camp-card-top"><strong>${esc(l.name)}</strong>${roleTag(l)}</span>
-    <span class="dt-sub">${l.brand ? "Brand " + esc(l.brand) + " · " : ""}${people(l)}</span>
+    <span class="camp-card-top"><strong>${esc(l.name)}</strong>${statusBadge(l)}</span>
+    <span class="dt-sub">${l.brand ? "Brand " + esc(l.brand) + " · " : ""}${people(l)} ${roleTag(l)}</span>
+    ${period(l) ? `<span class="dt-sub">${icon("calendar", 12)} ${period(l)}</span>` : ""}
     <span class="camp-steps"><span><strong class="num">${s.cand}</strong> ứng viên</span><span aria-hidden="true">→</span><span><strong class="num">${s.ent}</strong> đang liên hệ</span><span aria-hidden="true">→</span><span><strong class="num">${s.booked}</strong> chốt booking</span></span>
     ${l.kpiViews ? `<span class="bar ${barCls(k)}"><i style="width:${Math.min(100, k)}%"></i></span><span class="dt-sub">View dự kiến (đã duyệt) ${fmtNum(s.views)} / KPI ${fmtNum(l.kpiViews)} · ${k}%</span>` : `<span class="dt-sub">Chưa đặt KPI view</span>`}
   </a>`;
@@ -82,10 +94,12 @@ function renderDetail(el, p) {
   const s = stats(l), k = pct(s.views, l.kpiViews), vis = visibleLists();
   el.innerHTML = `<div class="page">
     <a class="back" href="#/campaign">${icon("chevL", 16)} ${can("allCampaigns") ? "Tất cả campaign" : "Campaign của tôi"}</a>
-    ${pageHead(l.name, `${l.brand ? "Brand " + esc(l.brand) + " · " : ""}${people(l)} ${roleTag(l)}`,
+    ${pageHead(l.name, `${statusBadge(l)} ${l.brand ? "Brand " + esc(l.brand) + " · " : ""}${people(l)} ${roleTag(l)}`,
       `${vis.length > 1 ? `<label class="sr-only" for="cp-switch">Đổi campaign</label><select class="select" id="cp-switch" style="width:auto">${vis.map((x) => `<option value="${x.id}" ${x.id === l.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}
        ${can("edit") && FEATURES.aiAgent ? `<button class="btn btn-ai" type="button" data-act="assistant">${icon("sparkles", 16)} Trợ lý AI</button>` : ""}
-       ${canManageList(l) ? `<button class="btn" type="button" data-act="members">${icon("users", 16)} Thành viên</button>` : ""}`)}
+       ${canManageList(l) ? `<button class="btn" type="button" data-act="members">${icon("users", 16)} Thành viên</button>` : ""}
+       ${can("edit") ? `<button class="btn" type="button" data-act="settings" data-tour="camp-settings">${icon("sliders", 16)} Cài đặt</button>` : ""}`)}
+    ${lifecycle(l, s)}
     <div class="card card-pad project-bar">
       <div><span class="faint">KPI view mục tiêu</span><strong class="num">${l.kpiViews ? fmtNum(l.kpiViews) : "Chưa đặt"}</strong>${l.kpiViews ? `<span class="bar ${barCls(k)}"><i style="width:${Math.min(100, k)}%"></i></span><span class="dt-sub">Đã duyệt đạt ${k}% (${fmtNum(s.views)} view dự kiến)</span>` : ""}</div>
       <div><span class="faint">1 · Ứng viên</span><strong class="num">${s.cand} creator</strong><span class="dt-sub">Nếu duyệt hết: +${fmtNum(s.candViews)} view</span></div>
@@ -96,7 +110,7 @@ function renderDetail(el, p) {
         <button type="button" data-step="ung-vien" aria-pressed="${tab === "ung-vien"}">1 · Ứng viên <span class="badge ${s.cand ? "badge-primary" : ""}">${s.cand}</span></button>
         <button type="button" data-step="lien-he" aria-pressed="${tab === "lien-he"}">2 · Liên hệ <span class="badge">${s.ent}</span></button>
       </div>
-      <span class="faint">${tab === "ung-vien" ? "Cân nhắc, ước tính KPI, so sánh, xuất báo giá. Bấm <strong>Duyệt</strong> để chuyển creator sang bước Liên hệ." : "Creator đã duyệt. Cập nhật tiến độ từ “Chưa liên hệ” tới “Đã chốt” booking; mỗi lần đổi đều ghi vào CRM của creator."}</span>
+      <span class="faint">${tab === "ung-vien" ? "Cân nhắc, ước tính KPI, so sánh, xuất báo giá. Bấm <strong>Duyệt</strong> để chuyển creator sang bước Liên hệ." : `Kéo thẻ creator qua các bước tới “${esc(l.steps.find((x) => x.final)?.label || "Đã chốt")}”; mỗi lần đổi đều ghi vào CRM của creator.${canManageList(l) ? ` <button class="link-btn" type="button" data-act="settings" data-focus="steps">Sửa các bước</button>` : ""}`}</span>
     </div>
     <div class="camp-body" id="camp-body"></div>
   </div>`;
@@ -108,6 +122,64 @@ function renderDetail(el, p) {
   $("#cp-switch", el)?.addEventListener("change", (e) => { location.hash = `#/campaign/${e.target.value}?tab=${tab}`; });
   delegate(el, "click", "[data-act=members]", () => openMembers(l));
   delegate(el, "click", "[data-act=assistant]", () => openAssistant(l));
+  delegate(el, "click", "[data-act=settings]", (e, b) => openCampaignSettings(l.id, b.dataset.focus || ""));
+  delegate(el, "click", "[data-life]", (e, b) => lifeAction(l, b.dataset.life));
+}
+
+/* ---------- Vòng đời: Nháp → Đang chạy → Hoàn thành ---------- */
+function lifecycle(l, s) {
+  const manage = canManageList(l);
+  const steps = [
+    { k: "draft", t: "Lên kế hoạch", d: "Brief, chọn ứng viên tiềm năng" },
+    { k: "running", t: "Đang chạy", d: "Liên hệ, chốt, theo dõi bài đăng" },
+    { k: "done", t: "Hoàn thành", d: "Chốt số liệu, báo cáo" },
+  ];
+  const at = steps.findIndex((x) => x.k === l.status);
+  const act = !manage ? "" : l.status === "draft"
+    ? `<button class="btn btn-primary" type="button" data-life="start" data-tour="camp-start">${icon("play", 16)} Bắt đầu campaign</button><button class="btn btn-ghost" type="button" data-life="delete">${icon("trash", 16)} Xoá nháp</button>`
+    : l.status === "running"
+      ? `<button class="btn btn-primary" type="button" data-life="done" data-tour="camp-done">${icon("flag", 16)} Hoàn thành campaign</button><button class="btn btn-ghost" type="button" data-life="draft">Về nháp</button>`
+      : `<button class="btn" type="button" data-life="reopen">${icon("sync", 16)} Mở lại</button>`;
+  const track = l.trackFrom ? `Theo dõi bài đăng ${fmtDate(l.trackFrom)} → ${l.trackTo ? fmtDate(l.trackTo) : "…"}${l.autoTrack ? " · tự động" : ""}` : "Chưa đặt khung theo dõi bài đăng";
+  return `<div class="card card-pad lifecycle" data-tour="camp-lifecycle">
+    <ol class="life-steps" aria-label="Vòng đời campaign">${steps.map((x, i) => `<li class="${i < at ? "is-past" : i === at ? "is-now" : ""}" ${i === at ? 'aria-current="step"' : ""}><span class="life-dot">${i < at ? icon("check", 14) : i + 1}</span><span><strong>${x.t}</strong><span class="dt-sub">${x.d}</span></span></li>`).join("")}</ol>
+    <div class="life-meta">
+      ${period(l) ? `<span>${icon("calendar", 14)} ${period(l)}</span>` : ""}
+      <span>${icon("eye", 14)} ${esc(track)}${can("edit") ? ` · <button class="link-btn" type="button" data-act="settings" data-focus="track">Đặt</button>` : ""}</span>
+      ${can("price") && l.budget ? `<span>Ngân sách <strong class="num">${fmtNum(l.budget)} ₫</strong></span>` : ""}
+      ${l.status === "done" && l.doneAt ? `<span>${icon("flag", 14)} Kết thúc ${fmtDate(l.doneAt)}</span>` : ""}
+    </div>
+    ${l.description ? `<p class="life-desc">${esc(l.description)}</p>` : ""}
+    ${act ? `<div class="row-wrap life-act">${act}</div>` : ""}
+  </div>`;
+}
+function confirmBox(title, body, okLabel, tone = "primary") {
+  return new Promise((resolve) => {
+    let done = false;
+    const o = openOverlay({ kind: "modal", title, body: `<div class="stack">${body}</div>`, onClose: () => { if (!done) resolve(false); },
+      footer: `<span class="spacer"></span><button class="btn" data-close type="button">Huỷ</button><button class="btn btn-${tone}" type="button" id="cf-ok">${esc(okLabel)}</button>` });
+    $("#cf-ok", o.el).addEventListener("click", () => { done = true; o.close(); resolve(true); });
+  });
+}
+async function lifeAction(l, what) {
+  const s = stats(l);
+  if (what === "start") {
+    if (!(await confirmBox("Bắt đầu campaign?", `<p>Campaign chuyển sang <strong>Đang chạy</strong>. Ngày bắt đầu được ghi là hôm nay nếu chưa đặt.</p>${s.cand ? `<p class="faint">Còn ${s.cand} ứng viên chưa duyệt — vẫn duyệt tiếp được sau khi bắt đầu.</p>` : ""}`, "Bắt đầu"))) return;
+    if (await setCampaignStatus(l.id, "running")) toast("Campaign đang chạy", l.name);
+  } else if (what === "done") {
+    const open = l.entries.length - s.booked;
+    if (!(await confirmBox("Hoàn thành campaign?", `<p>Campaign chuyển sang <strong>Hoàn thành</strong>: số liệu được chốt cho báo cáo và ngừng theo dõi tự động.</p>${open ? `<p class="faint">${open} creator chưa tới bước chốt.</p>` : ""}`, "Hoàn thành"))) return;
+    if (await setCampaignStatus(l.id, "done")) toast("Đã hoàn thành campaign", l.name);
+  } else if (what === "reopen") {
+    if (await setCampaignStatus(l.id, "running")) toast("Đã mở lại campaign", l.name);
+  } else if (what === "draft") {
+    if (await setCampaignStatus(l.id, "draft")) toast("Đã chuyển về nháp", l.name);
+  } else if (what === "delete") {
+    const booked = state.bookings.some((b) => b.listId === l.id);
+    if (booked) return toast("Không xoá được", "Campaign đã có booking.", "danger");
+    if (!(await confirmBox("Xoá campaign nháp?", `<p>Xoá hẳn <strong>${esc(l.name)}</strong> cùng ${s.cand} ứng viên, ${s.ent} creator đang liên hệ và hội thoại Trợ lý AI của campaign. Không hoàn tác được.</p>`, "Xoá campaign", "danger"))) return;
+    if (await deleteCampaign(l.id)) { toast("Đã xoá campaign nháp", l.name); location.hash = "#/campaign"; }
+  }
 }
 
 function openMembers(l) {

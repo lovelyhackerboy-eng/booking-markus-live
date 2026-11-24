@@ -22,7 +22,6 @@ export type ThreadMessage = { role: "user" | "assistant"; content: string; propo
 type Actor = Pick<CurrentUser, "email" | "name" | "role">;
 type SavedBrief = Brief & { notes?: string };
 
-const STAGE: Record<string, string> = { none: "Chưa liên hệ", zalo: "Đã liên hệ Zalo", manager: "Qua Manager/MCN", quoted: "Đã báo giá", closed: "Đã chốt" };
 const MAX_THREAD = 30;
 
 // Fixed text: identical for every user and campaign with the same price permission → cache-friendly prefix.
@@ -166,7 +165,7 @@ export async function runAgent(actor: Actor, input: { campaignId?: string | null
             ? {
                 name: current.name, brand: current.brand, kpiViews: current.kpiViews, brief,
                 candidates: current.candidates.map((x) => byId.get(x.creatorId)?.name ?? "?"),
-                contacting: current.entries.map((x) => `${byId.get(x.creatorId)?.name ?? "?"}: ${STAGE[x.stage] ?? x.stage}`),
+                contacting: current.entries.map((x) => `${byId.get(x.creatorId)?.name ?? "?"}: ${current.steps.find((st) => st.key === x.stage)?.label ?? x.stage}`),
               }
             : { error: "Chưa mở campaign." };
           break;

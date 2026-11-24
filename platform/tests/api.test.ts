@@ -214,6 +214,53 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       }
       const { GET } = await import(BOOK);
       expect(await (await GET(req("/api/bookings", { as: "planner" }))).text()).toContain("Secret launch X");
+      // a draft that already has a booking cannot be deleted
+      expect((await post("planner", `/api/campaigns/${id}`, { op: "delete" }, CAMP_ID)).status).toBe(409);
+    });
+
+    it("lifecycle: dates, custom steps, drag move, done, and delete of a draft only", async () => {
+      const op = async (id: string, body: unknown, as = "planner") => post(as, `/api/campaigns/${id}`, body, CAMP_ID);
+      const id = (await (await post("planner", "/api/campaigns", { name: "Lifecycle test", brand: "B" }, CAMP)).json()).campaign.id as string;
+      let c = (await (await op(id, { op: "update", description: "Brief", budget: 90000000, trackFrom: "2026-12-01", trackTo: "2026-12-20", autoTrack: true })).json()).campaign;
+      expect(c).toMatchObject({ status: "draft", description: "Brief", budget: 90000000, trackFrom: "2026-12-01", trackTo: "2026-12-20", autoTrack: true });
+      expect(c.steps.map((s: { key: string }) => s.key)).toEqual(["none", "zalo", "manager", "quoted", "closed"]);
+      expect((await op(id, { op: "update", trackFrom: "2026-12-30" })).status).toBe(422); // from > to
+
+      await op(id, { op: "addCandidate", creatorId: "CR-0003", sow: "video" });
+      await op(id, { op: "addCandidate", creatorId: "CR-0004", sow: "video" });
+      await op(id, { op: "approve", creatorIds: ["CR-0003", "CR-0004"] });
+      // rename + add + reorder steps; "manager" and "zalo" disappear
+      c = (await (await op(id, { op: "steps", steps: [{ key: "none", label: "Mới" }, { label: "Đàm phán giá" }, { key: "closed", label: "Chốt", final: true }] })).json()).campaign;
+      expect(c.steps.map((s: { label: string }) => s.label)).toEqual(["Mới", "Đàm phán giá", "Chốt"]);
+      const nego = c.steps[1].key as string;
+      expect(nego).toBe("dam-phan-gia");
+      expect((await op(id, { op: "steps", steps: [{ key: "none", label: "A", final: true }, { key: "closed", label: "B", final: true }] })).status).toBe(422);
+      expect((await op(id, { op: "setStage", creatorId: "CR-0003", stage: "zalo" })).status).toBe(422); // removed step
+
+      // drag CR-0004 to the top of "đàm phán", then CR-0003 above it
+      await op(id, { op: "moveEntry", creatorId: "CR-0004", stage: nego, position: 0 });
+      c = (await (await op(id, { op: "moveEntry", creatorId: "CR-0003", stage: nego, position: 0 })).json()).campaign;
+      expect(c.entries.filter((e: { stage: string }) => e.stage === nego).map((e: { creatorId: string }) => e.creatorId)).toEqual(["CR-0003", "CR-0004"]);
+      // removing a step that still has entries needs a target
+      expect((await op(id, { op: "steps", steps: [{ key: "none", label: "Mới" }, { key: "closed", label: "Chốt", final: true }] })).status).toBe(409);
+      c = (await (await op(id, { op: "steps", steps: [{ key: "none", label: "Mới" }, { key: "closed", label: "Chốt", final: true }], moveTo: "none" })).json()).campaign;
+      expect(c.entries.every((e: { stage: string }) => e.stage === "none")).toBe(true);
+
+      // viewer never sees the budget
+      expect((await getText("/api/campaigns", "viewer")).text).not.toContain("90000000");
+      // planner who is not owner/member cannot change status; owner can run → done
+      expect((await op(id, { op: "setStatus", status: "running" }, "plannerOther")).status).toBe(404);
+      c = (await (await op(id, { op: "setStatus", status: "running" })).json()).campaign;
+      expect(c.status).toBe("running");
+      expect(c.startDate).toBeTruthy();
+      expect((await op(id, { op: "delete" })).status).toBe(409); // not a draft
+      c = (await (await op(id, { op: "setStatus", status: "done" })).json()).campaign;
+      expect(c.status).toBe("done");
+      expect(c.doneAt).toBeTruthy();
+      await op(id, { op: "setStatus", status: "draft" });
+      const del = await op(id, { op: "delete" });
+      expect(del.status).toBe(200);
+      expect((await getText("/api/campaigns", "planner")).text).not.toContain("Lifecycle test");
     });
   });
 

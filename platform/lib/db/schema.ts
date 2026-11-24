@@ -12,6 +12,7 @@ import {
   primaryKey,
   smallint,
   text,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/mysql-core";
 
@@ -19,7 +20,9 @@ export const ROLE_VALUES = ["admin", "manager", "planner", "viewer"] as const;
 export const PLATFORM_VALUES = ["tiktok", "facebook", "instagram", "youtube", "threads"] as const;
 // The 5 SOW price columns of CREATOR_DB: Photo Post, Video Post, Tham gia sự kiện, Tham gia video của nhãn hàng, Livestream.
 export const SOW_VALUES = ["photo", "video", "event", "brandvideo", "live"] as const;
-export const STAGE_VALUES = ["none", "zalo", "manager", "quoted", "closed"] as const;
+export const STAGE_VALUES = ["none", "zalo", "manager", "quoted", "closed"] as const; // default contact steps
+export const CAMPAIGN_STATUS_VALUES = ["draft", "running", "done"] as const;
+export const SOURCE_VALUES = ["manual", "auto"] as const;
 export const BOOKING_STATUS_VALUES = ["confirmed", "content", "posted", "paid", "cancelled"] as const;
 
 const ts = (name: string) => datetime(name, { mode: "date", fsp: 3 });
@@ -149,10 +152,35 @@ export const campaigns = mysqlTable("campaigns", {
   brand: varchar("brand", { length: 120 }),
   ownerEmail: varchar("owner_email", { length: 190 }).notNull(),
   kpiViews: bigint("kpi_views", { mode: "number" }),
+  // Lifecycle: draft (chọn ứng viên) → running (đã chốt, triển khai + theo dõi) → done (kết thúc).
+  status: mysqlEnum("status", CAMPAIGN_STATUS_VALUES).notNull().default("draft"),
+  description: text("description"),
+  budget: bigint("budget", { mode: "number" }), // price class
+  startDate: datetime("start_date", { mode: "date" }),
+  endDate: datetime("end_date", { mode: "date" }),
+  // Automatic post tracking: posts published between trackFrom and trackTo by creators in the campaign.
+  autoTrack: int("auto_track").notNull().default(0),
+  trackFrom: datetime("track_from", { mode: "date" }),
+  trackTo: datetime("track_to", { mode: "date" }),
+  doneAt: ts("done_at"),
   createdAt: ts("created_at").notNull(),
   updatedAt: ts("updated_at").notNull(),
   archivedAt: ts("archived_at"),
 });
+
+// Contact steps of a campaign (bước 2 · Liên hệ). No rows = the default steps (lib/campaigns/steps.ts). `final` marks
+// the step that means "chốt" (booking confirmed); a campaign keeps exactly one final step.
+export const campaignSteps = mysqlTable(
+  "campaign_steps",
+  {
+    campaignId: varchar("campaign_id", { length: 40 }).notNull(),
+    key: varchar("step_key", { length: 40 }).notNull(),
+    label: varchar("label", { length: 80 }).notNull(),
+    position: int("position").notNull(),
+    final: int("final").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.key] })],
+);
 
 export const campaignMembers = mysqlTable(
   "campaign_members",
@@ -183,7 +211,8 @@ export const campaignEntries = mysqlTable(
   {
     campaignId: varchar("campaign_id", { length: 40 }).notNull(),
     creatorId: varchar("creator_id", { length: 40 }).notNull(),
-    stage: mysqlEnum("stage", STAGE_VALUES).notNull().default("none"),
+    stage: varchar("stage", { length: 40 }).notNull().default("none"), // a campaign_steps key (custom steps)
+    position: int("position").notNull().default(0), // order inside the step (drag and drop)
     addedAt: ts("added_at").notNull(),
     updatedAt: ts("updated_at").notNull(),
   },
@@ -219,6 +248,96 @@ export const bookings = mysqlTable(
   },
   (t) => [index("bookings_creator_idx").on(t.creatorId), index("bookings_campaign_idx").on(t.campaignId)],
 );
+
+/* ---------- Metrics & post tracking ---------- */
+// Kept apart from `channels`: the Sheet importer rewrites channels every 15 minutes, these are v2-owned.
+
+// Recent clips of a creator's channel (auto from YouTube RSS, or entered by hand) — input of the metrics formula.
+export const creatorClips = mysqlTable(
+  "creator_clips",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    creatorId: varchar("creator_id", { length: 40 }).notNull(),
+    platform: mysqlEnum("platform", PLATFORM_VALUES).notNull(),
+    externalId: varchar("external_id", { length: 120 }).notNull(), // video id or normalised URL
+    url: varchar("url", { length: 1024 }),
+    title: varchar("title", { length: 300 }),
+    publishedAt: datetime("published_at", { mode: "date" }),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    shares: bigint("shares", { mode: "number" }),
+    source: mysqlEnum("source", SOURCE_VALUES).notNull(),
+    enteredBy: varchar("entered_by", { length: 190 }),
+    fetchedAt: ts("fetched_at").notNull(),
+  },
+  (t) => [index("clips_creator_idx").on(t.creatorId, t.platform), uniqueIndex("clips_unique").on(t.creatorId, t.platform, t.externalId)],
+);
+
+// Computed per creator + platform from creator_clips with the admin-configured formula (lib/metrics/compute.ts).
+export const creatorMetrics = mysqlTable(
+  "creator_metrics",
+  {
+    creatorId: varchar("creator_id", { length: 40 }).notNull(),
+    platform: mysqlEnum("platform", PLATFORM_VALUES).notNull(),
+    avgViews: bigint("avg_views", { mode: "number" }),
+    er: decimal("er", { precision: 7, scale: 2, mode: "number" }),
+    sampleSize: int("sample_size").notNull().default(0),
+    followersSeen: bigint("followers_seen", { mode: "number" }), // what the platform shows now (not written to the Sheet)
+    avatarUrl: varchar("avatar_url", { length: 1024 }),
+    source: mysqlEnum("source", SOURCE_VALUES).notNull(),
+    lastError: varchar("last_error", { length: 120 }),
+    computedAt: ts("computed_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.creatorId, t.platform] })],
+);
+
+// Posts delivered inside a campaign (manual, or found automatically in the tracking window).
+export const posts = mysqlTable(
+  "posts",
+  {
+    id: varchar("id", { length: 40 }).primaryKey(),
+    campaignId: varchar("campaign_id", { length: 40 }).notNull(),
+    creatorId: varchar("creator_id", { length: 40 }).notNull(),
+    platform: mysqlEnum("platform", PLATFORM_VALUES).notNull(),
+    url: varchar("url", { length: 1024 }).notNull(),
+    externalId: varchar("external_id", { length: 120 }),
+    title: varchar("title", { length: 300 }),
+    postedAt: datetime("posted_at", { mode: "date" }),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    shares: bigint("shares", { mode: "number" }),
+    source: mysqlEnum("source", SOURCE_VALUES).notNull(),
+    lastFetchedAt: ts("last_fetched_at"),
+    createdBy: varchar("created_by", { length: 190 }),
+    createdAt: ts("created_at").notNull(),
+    updatedAt: ts("updated_at").notNull(),
+  },
+  (t) => [index("posts_campaign_idx").on(t.campaignId), uniqueIndex("posts_unique").on(t.campaignId, t.url)],
+);
+
+export const postSnapshots = mysqlTable(
+  "post_snapshots",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    postId: varchar("post_id", { length: 40 }).notNull(),
+    at: ts("at").notNull(),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    shares: bigint("shares", { mode: "number" }),
+  },
+  (t) => [index("snapshots_post_idx").on(t.postId)],
+);
+
+// Admin-editable settings (JSON values), e.g. the metrics formula.
+export const settings = mysqlTable("settings", {
+  key: varchar("setting_key", { length: 60 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedBy: varchar("updated_by", { length: 190 }),
+  updatedAt: ts("updated_at").notNull(),
+});
 
 /* ---------- AI assistant ---------- */
 

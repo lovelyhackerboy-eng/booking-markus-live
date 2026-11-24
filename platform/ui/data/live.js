@@ -97,12 +97,33 @@ export function toCreator(a) {
   };
 }
 
+// Bước liên hệ mặc định — khớp lib/campaigns/steps.ts. Mỗi campaign có thể đổi tên / thêm / xoá / sắp xếp lại.
+export const DEFAULT_STEPS = [
+  { key: "none", label: "Chưa liên hệ", final: false },
+  { key: "zalo", label: "Đã liên hệ qua Zalo", final: false },
+  { key: "manager", label: "Qua Manager / MCN", final: false },
+  { key: "quoted", label: "Đã báo giá", final: false },
+  { key: "closed", label: "Đã chốt", final: true },
+];
+export const CAMPAIGN_STATUS = {
+  draft: { label: "Nháp", tone: "outline", desc: "Đang lên kế hoạch, chọn ứng viên. Campaign nháp xoá được." },
+  running: { label: "Đang chạy", tone: "primary", desc: "Đã bắt đầu: liên hệ, chốt booking, theo dõi bài đăng." },
+  done: { label: "Hoàn thành", tone: "success", desc: "Đã kết thúc. Số liệu chốt để báo cáo; mở lại được nếu cần." },
+};
+export const stepLabel = (l, k) => (l && l.steps.find((s) => s.key === k)?.label) || k;
+export const finalStep = (l) => (l && (l.steps.find((s) => s.final) || l.steps[l.steps.length - 1])?.key) || "closed";
+
 export function toList(c) {
   return {
     id: c.id, name: c.name, brand: c.brand || "", owner: c.owner || "", members: (c.members || []).filter(Boolean),
     kpiViews: c.kpiViews || 0, isMine: !!c.isMine, canManage: !!c.canManage,
-    entries: (c.entries || []).map((e) => ({ id: e.creatorId, stage: e.stage, addedAt: e.addedAt })),
+    status: c.status || "draft", description: c.description || "", budget: c.budget ?? null,
+    startDate: c.startDate || null, endDate: c.endDate || null, doneAt: c.doneAt || null,
+    autoTrack: !!c.autoTrack, trackFrom: c.trackFrom || null, trackTo: c.trackTo || null,
+    steps: c.steps && c.steps.length ? c.steps : DEFAULT_STEPS,
+    entries: (c.entries || []).map((e) => ({ id: e.creatorId, stage: e.stage, position: e.position || 0, addedAt: e.addedAt })),
     candidates: c.candidates || [],
+    createdAt: c.createdAt || null,
   };
 }
 

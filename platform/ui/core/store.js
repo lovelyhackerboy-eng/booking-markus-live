@@ -2,8 +2,8 @@
 // mỗi thao tác ghi gọi API (server kiểm quyền lại); giao diện cập nhật ngay, lỗi thì báo và nạp lại từ server.
 // Giữ nguyên tên hàm của prototype để các màn không phải đổi.
 
-import { LIST_STAGES, TEAM } from "../data/catalog.js";
-import { api, toCreator, toList, toBooking, FEATURES } from "../data/live.js";
+import { TEAM } from "../data/catalog.js";
+import { api, toCreator, toList, toBooking, FEATURES, stepLabel } from "../data/live.js";
 import { emptyFilters, setOptionsFromData } from "./filters.js";
 import { ageDays, toast } from "./ui.js";
 
@@ -43,6 +43,7 @@ export const state = {
   lists: [],
   viewMode: load("viewMode", "cards"),
   listCols: load("listCols", ["stage", "rel", "contact", "rate", "owner"]),
+  contactView: load("contactView", "board"), // tab Liên hệ: "board" (kanban kéo thả) | "table"
   lastGlobalSync: null,
   autoSync: "Đồng bộ từ Google Sheet",
 };
@@ -84,7 +85,11 @@ export async function reload() {
   emit("data"); emit("lists"); emit("shortlist");
 }
 // Ghi lên server; lỗi → báo và nạp lại để giao diện khớp với server.
-const ERR = { forbidden: "Vai trò của bạn không làm được thao tác này.", not_found: "Không tìm thấy (có thể bạn không còn theo dõi campaign này).", unauthenticated: "Phiên đăng nhập đã hết, hãy tải lại trang." };
+const ERR = {
+  forbidden: "Vai trò của bạn không làm được thao tác này.", not_found: "Không tìm thấy (có thể bạn không còn theo dõi campaign này).", unauthenticated: "Phiên đăng nhập đã hết, hãy tải lại trang.",
+  not_draft: "Chỉ xoá được campaign ở trạng thái Nháp.", has_bookings: "Campaign đã có booking nên không xoá được.", step_has_entries: "Bước bị xoá vẫn còn creator — chọn bước để chuyển họ sang.",
+  bad_dates: "Ngày bắt đầu theo dõi phải trước ngày kết thúc.", one_final_step: "Chỉ một bước được đánh dấu là “chốt booking”.", unknown_step: "Bước này không còn trong campaign (đã có người sửa). Đã tải lại.",
+};
 function send(path, body, after) {
   return api(path, { method: "POST", body })
     .then((r) => { if (after) after(r); return r; })
@@ -252,7 +257,7 @@ export function toggleInList(listId, creatorId, force) {
   if (!can("edit") || !l) return false;
   const has = l.entries.some((e) => e.id === creatorId);
   const want = force == null ? !has : force;
-  if (want && !has) { l.entries.push({ id: creatorId, stage: "none", addedAt: new Date().toISOString() }); campaignOp(listId, { op: "addEntry", creatorId }); }
+  if (want && !has) { l.entries.push({ id: creatorId, stage: l.steps[0]?.key || "none", position: 999, addedAt: new Date().toISOString() }); campaignOp(listId, { op: "addEntry", creatorId }); }
   if (!want && has) { l.entries = l.entries.filter((e) => e.id !== creatorId); campaignOp(listId, { op: "removeEntry", creatorId }); }
   emit("lists");
   return want;
@@ -285,9 +290,42 @@ export function setListStage(listId, creatorId, stage) {
   if (!can("edit") || !e || e.stage === stage) return;
   e.stage = stage;
   const c = getCreator(creatorId);
-  if (c && can("contact")) c.notes.unshift({ at: new Date().toISOString(), by: me(), text: `Tiến độ liên hệ → “${LIST_STAGES[stage]}” (campaign ${l.name}).`, kind: "" });
+  if (c && can("contact")) c.notes.unshift({ at: new Date().toISOString(), by: me(), text: `Tiến độ liên hệ → “${stepLabel(l, stage)}” (campaign ${l.name}).`, kind: "" });
   campaignOp(listId, { op: "setStage", creatorId, stage });
   emit("lists");
+}
+/** Kéo thả trên kanban: đổi bước và/hoặc vị trí trong bước. Cập nhật ngay trên máy rồi ghi server. */
+export function moveEntry(listId, creatorId, stage, position) {
+  const l = getList(listId);
+  const e = l && l.entries.find((x) => x.id === creatorId);
+  if (!can("edit") || !e) return null;
+  const col = l.entries.filter((x) => x.stage === stage && x.id !== creatorId).sort((a, b) => a.position - b.position);
+  const pos = Math.max(0, Math.min(position ?? col.length, col.length));
+  col.splice(pos, 0, e);
+  const moved = e.stage !== stage;
+  e.stage = stage;
+  col.forEach((x, i) => { x.position = i; });
+  const c = getCreator(creatorId);
+  if (moved && c && can("contact")) c.notes.unshift({ at: new Date().toISOString(), by: me(), text: `Tiến độ liên hệ → “${stepLabel(l, stage)}” (campaign ${l.name}).`, kind: "" });
+  emit("lists");
+  return campaignOp(listId, { op: "moveEntry", creatorId, stage, position: pos });
+}
+/** Sửa thông tin campaign: { name, brand, kpiViews, description, budget, startDate, endDate, autoTrack, trackFrom, trackTo }. */
+export const updateCampaign = (listId, fields) => (can("edit") ? campaignOp(listId, { op: "update", ...fields }) : Promise.resolve(null));
+export const setCampaignStatus = (listId, status) => (canManageList(getList(listId)) ? campaignOp(listId, { op: "setStatus", status }) : Promise.resolve(null));
+/** steps = [{ key?, label, final? }] theo thứ tự mới; moveTo = bước nhận creator của các bước bị xoá. */
+export const saveSteps = (listId, steps, moveTo) => (canManageList(getList(listId)) ? campaignOp(listId, { op: "steps", steps, ...(moveTo ? { moveTo } : {}) }) : Promise.resolve(null));
+/** Xoá campaign Nháp (không có booking). Trả về true nếu đã xoá. */
+export async function deleteCampaign(listId) {
+  const l = getList(listId);
+  if (!canManageList(l) || l.status !== "draft") return false;
+  const r = await send(`/campaigns/${encodeURIComponent(listId)}`, { op: "delete" });
+  if (!r) return false;
+  state.lists = state.lists.filter((x) => x.id !== listId);
+  delete state.shortlists[listId];
+  if (state.activeListId === listId) { state.activeListId = state.lists[0]?.id || null; save("activeListId", state.activeListId); }
+  emit("lists"); emit("shortlist");
+  return true;
 }
 export const allLabels = () => [];
 /** Tài liệu của creator: chưa có kho tài liệu thật. */
