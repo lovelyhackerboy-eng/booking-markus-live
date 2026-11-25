@@ -1,7 +1,7 @@
 // API tests against a real MariaDB (TEST_DATABASE_URL, see docker-compose.dev.yml). Sessions are created directly
 // in the DB per role — there is no login shortcut in the app. Leak checks run on the RAW JSON text.
 import path from "node:path";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DbDirectory, setDirectoryForTests, type Employee } from "@/lib/auth/directory";
@@ -522,11 +522,77 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
         const { POST } = await routes.google();
         const body = await (await POST(req("/api/auth/google", { method: "POST", headers: { origin: ORIGIN }, body: { idToken: tok } }))).json();
         expect(body.user.role).toBe("admin");
-        const { setUserRole } = await import("@/lib/admin/users");
-        await expect(setUserRole("someone@markus.test", "boot@markus.test", "viewer")).rejects.toMatchObject({ status: 409 }); // last admin
+        const { changeUser } = await import("@/lib/admin/users");
+        await expect(changeUser("someone@markus.test", "role", "boot@markus.test", "viewer")).rejects.toMatchObject({ status: 409 }); // last admin
+        await expect(changeUser("someone@markus.test", "block", "boot@markus.test")).rejects.toMatchObject({ status: 409 }); // cannot block it either
       } finally {
         for (const e of admins) await db().update(users).set({ role: "admin" }).where(eq(users.email, e));
         await db().delete(users).where(eq(users.email, "boot@markus.test"));
+        setDirectoryForTests(undefined);
+      }
+    });
+
+    it("sign-up queue: any Google e-mail queues; admin approves with a role, blocks, unblocks (back to the queue)", async () => {
+      const g = await fakeGoogle();
+      setGoogleKeysForTests(g.keys);
+      const sheet = new Map<string, Employee>();
+      const seeded = new Set<string>(SEED_USERS.map((u) => u.email));
+      const dbDir = new DbDirectory();
+      setDirectoryForTests({ lookup: async (e: string) => sheet.get(e.trim().toLowerCase()) ?? (seeded.has(e.trim().toLowerCase()) ? dbDir.lookup(e) : null) });
+      const { POST } = await routes.google();
+      const U = "@/app/api/admin/users/route";
+      const login = async (email = "la@ngoai.test") => {
+        const tok = await g.sign({ email, email_verified: true, name: "Người Lạ" }, { aud: process.env.GOOGLE_CLIENT_ID });
+        const res = await POST(req("/api/auth/google", { method: "POST", headers: { origin: ORIGIN }, body: { idToken: tok } }));
+        const body = await res.json();
+        if (res.status === 200) cookies.la = { cookie: (res.headers.get("set-cookie") || "").split(";")[0], csrf: body.csrf };
+        return { status: res.status, body, cookie: res.headers.get("set-cookie") };
+      };
+      const statusOf = async (email = "la@ngoai.test") =>
+        ((await call("admin", U, "GET", "/api/admin/users")).json.users as { email: string; status: string; role: string }[]).find((x) => x.email === email);
+      try {
+        const q1 = await login();
+        expect(q1).toMatchObject({ status: 202, body: { pending: true } });
+        expect(q1.cookie).toBeNull(); // no session while waiting
+        expect(await statusOf()).toMatchObject({ status: "pending", role: "viewer" });
+        expect((await login()).status).toBe(202); // asking again does not duplicate
+        const adminSnap = JSON.parse((await getText("/api/snapshot", "admin")).text);
+        expect(adminSnap.config.pendingUsers).toBeGreaterThanOrEqual(1);
+        expect(JSON.stringify(adminSnap.team)).not.toContain("la@ngoai.test"); // not on the team until approved
+        expect(JSON.parse((await getText("/api/snapshot", "viewer")).text).config.pendingUsers).toBeUndefined();
+
+        expect((await call("planner", U, "POST", "/api/admin/users", { op: "approve", email: "la@ngoai.test", role: "planner" })).status).toBe(403);
+        expect((await call("admin", U, "POST", "/api/admin/users", { op: "approve", email: "la@ngoai.test" })).status).toBe(422); // role required
+        expect((await call("admin", U, "POST", "/api/admin/users", { op: "approve", email: "la@ngoai.test", role: "planner" })).status).toBe(200);
+        const ok = await login();
+        expect(ok.status).toBe(200);
+        expect(ok.body.user).toMatchObject({ role: "planner" });
+        expect(JSON.parse((await getText("/api/auth/session", "la")).text).user.role).toBe("planner");
+
+        expect((await call("admin", U, "POST", "/api/admin/users", { op: "block", email: "la@ngoai.test" })).status).toBe(200);
+        expect((await getText("/api/auth/session", "la")).status).toBe(401); // signed out at once
+        const b = await login();
+        expect(b.status).toBe(403);
+        expect(b.body.error).toBe("blocked");
+        sheet.set("la@ngoai.test", { email: "la@ngoai.test", name: "Người Lạ", role: "admin" });
+        expect((await login()).status).toBe(403); // a block also overrides the Employees tab
+        sheet.delete("la@ngoai.test");
+        expect((await call("admin", U, "POST", "/api/admin/users", { op: "block", email: "admin@markus.test" })).status).toBe(409); // not yourself
+
+        expect((await call("admin", U, "POST", "/api/admin/users", { op: "unblock", email: "la@ngoai.test" })).status).toBe(200);
+        expect(await statusOf()).toMatchObject({ status: "pending" }); // back in the queue, nothing deleted
+        expect((await login()).status).toBe(202);
+        const acts = (await db().select().from(auditLog).where(eq(auditLog.target, "user:la@ngoai.test"))).map((a) => a.action);
+        expect(acts).toEqual(expect.arrayContaining(["user.approve", "user.block", "user.unblock"]));
+
+        // The queue is capped: a flood of sign-ins cannot grow the table without bound.
+        const { PENDING_CAP } = await import("@/lib/auth/access");
+        const now = new Date();
+        await db().insert(users).values(Array.from({ length: PENDING_CAP }, (_, i) => ({ email: `flood${i}@spam.test`, name: "x", role: "viewer" as const, status: "pending" as const, requestedAt: now, createdAt: now })));
+        expect((await login("one-more@spam.test")).status).toBe(429);
+        expect((await login()).status).toBe(202); // someone already queued may still ask again
+      } finally {
+        await db().delete(users).where(sql`${users.email} LIKE '%@spam.test' OR ${users.email} = 'la@ngoai.test'`);
         setDirectoryForTests(undefined);
       }
     });
@@ -608,14 +674,16 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       expect(body.user.role).toBe("planner");
     });
 
-    it("unknown email → 401 not_authorized; wrong audience → 401; cross-origin → 403", async () => {
+    it("unknown email → 202 queued (no session); wrong audience → 401; cross-origin → 403", async () => {
       const g = await fakeGoogle();
       setGoogleKeysForTests(g.keys);
       const { POST } = await routes.google();
       const unknown = await g.sign({ email: "stranger@else.test", email_verified: true }, { aud: process.env.GOOGLE_CLIENT_ID });
       const r1 = await POST(req("/api/auth/google", { method: "POST", headers: { origin: ORIGIN }, body: { idToken: unknown } }));
-      expect(r1.status).toBe(401);
-      expect((await r1.json()).error).toBe("not_authorized");
+      expect(r1.status).toBe(202);
+      expect(await r1.json()).toMatchObject({ pending: true });
+      expect(r1.headers.get("set-cookie")).toBeNull();
+      await db().delete(users).where(eq(users.email, "stranger@else.test"));
       const wrongAud = await g.sign({ email: "ngocanh@markus.test", email_verified: true }, { aud: "someone-else" });
       expect((await POST(req("/api/auth/google", { method: "POST", headers: { origin: ORIGIN }, body: { idToken: wrongAud } }))).status).toBe(401);
       const good = await g.sign({ email: "ngocanh@markus.test", email_verified: true }, { aud: process.env.GOOGLE_CLIENT_ID });

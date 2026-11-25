@@ -8,6 +8,17 @@
 
 export const RELEASES = [
   {
+    version: "1.3.0", date: "2026-11-25", title: "Người ngoài xin vào, Admin duyệt hoặc chặn",
+    new: [
+      { t: "Ai có tài khoản Google cũng đăng nhập được: người không có trong tab Employees sẽ vào hàng đợi “Chờ duyệt” — Admin chọn vai trò ngay lúc duyệt.", perm: "admin" },
+      { t: "Chặn email lạ chỉ một nút: họ bị đăng xuất ngay và không đăng nhập lại được. Chặn nhầm thì bỏ chặn ở mục “Đã chặn”, người đó về lại hàng đợi.", perm: "admin" },
+      { t: "Mục Quản trị hiện số người đang chờ duyệt.", perm: "admin" },
+    ],
+    improved: [
+      { t: "Người mới đăng nhập thấy rõ họ đang chờ Admin duyệt và cần làm gì tiếp.", perm: "admin" },
+    ],
+  },
+  {
     version: "1.2.1", date: "2026-11-25", title: "Sửa lỗi đọc chỉ số YouTube, bớt làm phiền khi cập nhật",
     new: [
       { t: "Quản trị → Hệ thống: danh sách kênh YouTube không đọc được chỉ số, kèm lý do và link để sửa trên Google Sheet.", perm: "admin" },

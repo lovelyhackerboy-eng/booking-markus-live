@@ -30,5 +30,6 @@
 - Đổi crontab: sao lưu trước, cài từ file (`crontab file`), không dùng `(crontab -l; …) | crontab -`.
 - Không bao giờ in dữ liệu cá nhân (điện thoại, email, ghi chú) từ server; chỉ số đếm.
 - Xoá campaign là xoá mềm (`status = deleted`), không xoá dữ liệu.
-- Vai trò: tab Employees trên Sheet chỉ quyết định **ai được đăng nhập**; vai trò nằm ở bảng `users`, Admin đổi ở Quản trị → Người dùng. Đăng nhập lần đầu luôn là `viewer` (trừ khi DB chưa có admin nào). Không đọc lại vai trò từ Sheet.
+- Ai được vào (`lib/auth/access.ts`): bị chặn (`users.status = blocked`) → không bao giờ, kể cả có trong Sheet; có trong tab Employees → vào; được Admin duyệt (`approvedAt`) → vào; còn lại (mọi email Google đã xác minh) → hàng đợi `pending`, không tạo phiên. Admin duyệt (chọn vai trò) / chặn / bỏ chặn (về hàng đợi) ở Quản trị → Người dùng; không xoá dòng `users` nào. Hàng đợi có trần `PENDING_CAP`.
+- Vai trò nằm ở bảng `users`, Admin đổi ở Quản trị → Người dùng. Đăng nhập lần đầu luôn là `viewer` (trừ khi DB chưa có admin nào). Không đọc lại vai trò từ Sheet. Không tự đổi / chặn chính mình; luôn còn ít nhất một Admin đang dùng.
 - Số liệu hệ thống: chỉ dùng giới hạn gói hosting (`uapi ResourceUsage get_usages`), không dùng `os.cpus()` / `os.totalmem()` / `statfs` (đó là máy chủ vật lý dùng chung).

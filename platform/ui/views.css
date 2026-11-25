@@ -532,3 +532,7 @@ a.chan-item:hover .num { text-decoration: underline; }
 .fb-mine li { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) 0; border-bottom: 1px solid var(--card-border); }
 .fb-reply { font-size: var(--fs-sm); color: var(--text); background: var(--primary-soft); border-radius: 8px; padding: 6px 8px; margin-top: 4px; }
 @media (max-width: 640px) { .fb-dl { grid-template-columns: 1fr; } .fb-admin { grid-template-columns: 1fr auto auto; } .fb-admin select { grid-column: 1 / -1; } }
+
+/* Quản trị → Người dùng */
+.users-hint { margin: 0; padding: 0 var(--sp-4) var(--sp-3); }
+.login[data-state=pending] .welcome-steps, .login[data-state=pending] .welcome-lead { text-align: left; }

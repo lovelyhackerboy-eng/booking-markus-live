@@ -126,9 +126,12 @@ export function demoApi(path, method) {
   const SYNC = { importMinutes: 15, metricsHours: 1, metricsBatch: 25, youtubeRefreshHours: 20, clientRefreshMinutes: 15 };
   if (path === "/admin/sync") return Promise.resolve({ ok: true, settings: SYNC, defaults: SYNC, options: { importMinutes: [0, 15, 30, 60, 120, 240, 720, 1440], metricsHours: [0, 1, 2, 3, 6, 12, 24], clientRefreshMinutes: [0, 5, 10, 15, 30, 60] } });
   if (path === "/admin/users") return Promise.resolve({ ok: true, users: [
-    { email: "ban@demo.test", name: "Bạn", role: "admin", lastLoginAt: day(0), createdAt: day(30) },
-    { email: "minh@demo.test", name: "Người mới (mẫu)", role: "viewer", lastLoginAt: day(0.1), createdAt: day(0.1) },
-    { email: "lan@demo.test", name: "Planner mẫu", role: "planner", lastLoginAt: day(2), createdAt: day(20) },
+    { email: "khach@ngoai.test", name: "Người xin vào (mẫu)", role: "viewer", status: "pending", requestedAt: day(0.05), createdAt: day(0.05) },
+    { email: "doitac@ngoai.test", name: "Đối tác (mẫu)", role: "viewer", status: "pending", requestedAt: day(0.3), createdAt: day(0.3) },
+    { email: "ban@demo.test", name: "Bạn", role: "admin", status: "active", lastLoginAt: day(0), createdAt: day(30) },
+    { email: "minh@demo.test", name: "Người mới (mẫu)", role: "viewer", status: "active", lastLoginAt: day(0.1), createdAt: day(0.1) },
+    { email: "lan@demo.test", name: "Planner mẫu", role: "planner", status: "active", approvedAt: day(5), lastLoginAt: day(2), createdAt: day(20) },
+    { email: "spam@la.test", name: "Email lạ (mẫu)", role: "viewer", status: "blocked", blockedAt: day(1), blockedBy: "ban@demo.test", createdAt: day(1.2) },
   ] });
   if (path === "/admin/tutorial") return Promise.resolve({ ok: true, settings: { resetAt: null } });
   if (path === "/admin/system") {

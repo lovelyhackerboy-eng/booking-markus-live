@@ -29,14 +29,27 @@ const ts = (name: string) => datetime(name, { mode: "date", fsp: 3 });
 
 /* ---------- People ---------- */
 
-// Mirror of the Employees tab (the role source of truth stays the Sheet in production; see lib/auth/directory.ts).
-export const users = mysqlTable("users", {
-  email: varchar("email", { length: 190 }).primaryKey(),
-  name: varchar("name", { length: 120 }).notNull(),
-  role: mysqlEnum("role", ROLE_VALUES).notNull().default("viewer"),
-  lastLoginAt: ts("last_login_at"),
-  createdAt: ts("created_at").notNull(),
-});
+// Everyone who has signed in with Google. WHO may enter: on the Employees tab of the Sheet, OR approved by an admin
+// (approvedAt set) — and never when status = blocked. Strangers land in status = pending (the admin's queue).
+// The role lives here (admin-managed), not on the Sheet; see lib/auth/session.ts and lib/admin/users.ts.
+export const USER_STATUS_VALUES = ["active", "pending", "blocked"] as const;
+export const users = mysqlTable(
+  "users",
+  {
+    email: varchar("email", { length: 190 }).primaryKey(),
+    name: varchar("name", { length: 120 }).notNull(),
+    role: mysqlEnum("role", ROLE_VALUES).notNull().default("viewer"),
+    status: mysqlEnum("status", USER_STATUS_VALUES).notNull().default("active"),
+    requestedAt: ts("requested_at"), // last sign-in attempt while pending
+    approvedAt: ts("approved_at"), // admin let this e-mail in (not needed for people on the Employees tab)
+    approvedBy: varchar("approved_by", { length: 190 }),
+    blockedAt: ts("blocked_at"),
+    blockedBy: varchar("blocked_by", { length: 190 }),
+    lastLoginAt: ts("last_login_at"),
+    createdAt: ts("created_at").notNull(),
+  },
+  (t) => [index("users_status_idx").on(t.status)],
+);
 
 export const sessions = mysqlTable(
   "sessions",

@@ -1,6 +1,7 @@
 // Server sessions in MariaDB. Cookie holds a random id; the table stores only its sha256.
 // Limits match PHP: 8 h idle, 24 h absolute.
-// WHO may log in: the directory (Employees tab), re-checked on every request — removing someone revokes access.
+// WHO may log in: the Employees tab or an admin approval, never when blocked (lib/auth/access.ts) — re-checked on every
+// request, so removing someone from the Sheet (unless approved) or blocking them revokes access at once.
 // WHICH role: the users row, managed by Admin (Quản trị → Người dùng). A first login always starts as viewer
 // (least privilege); the Sheet's Role column only counts when no admin exists yet (bootstrap, e.g. a fresh database).
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
@@ -9,6 +10,7 @@ import { db } from "../db/client";
 import { sessions, users } from "../db/schema";
 import { env } from "../env";
 import { fail, readCookie } from "../http";
+import { stillAllowed } from "./access";
 import { directory, type Employee } from "./directory";
 import type { Role } from "./roles";
 
@@ -43,7 +45,7 @@ export async function createSession(emp: Employee): Promise<{ cookie: string; cs
   await db()
     .insert(users)
     .values({ email: emp.email, name: emp.name || emp.email, role: await roleOnLogin(emp), lastLoginAt: now, createdAt: now })
-    .onDuplicateKeyUpdate({ set: { name: emp.name || emp.email, lastLoginAt: now } });
+    .onDuplicateKeyUpdate({ set: { name: emp.name || emp.email, lastLoginAt: now, status: "active" } }); // e.g. queued, then added to the Sheet
   const [u] = await db().select({ role: users.role }).from(users).where(eq(users.email, emp.email)).limit(1);
   // Housekeeping: drop expired rows of this user (cheap, indexed).
   await db()
@@ -64,7 +66,7 @@ export async function currentUser(req: Request): Promise<CurrentUser | null> {
   if (!id || id.length > 100) return null;
   const hash = sha256(id);
   const [s] = await db()
-    .select({ email: sessions.email, csrf: sessions.csrf, createdAt: sessions.createdAt, lastSeenAt: sessions.lastSeenAt, role: users.role })
+    .select({ email: sessions.email, csrf: sessions.csrf, createdAt: sessions.createdAt, lastSeenAt: sessions.lastSeenAt, role: users.role, status: users.status, approvedAt: users.approvedAt, name: users.name })
     .from(sessions)
     .leftJoin(users, eq(users.email, sessions.email))
     .where(eq(sessions.idHash, hash))
@@ -75,15 +77,15 @@ export async function currentUser(req: Request): Promise<CurrentUser | null> {
     await db().delete(sessions).where(eq(sessions.idHash, hash));
     return null;
   }
-  const emp = await directory().lookup(s.email);
-  if (!emp) {
+  const emp = s.status === "blocked" ? null : await directory().lookup(s.email);
+  if (!stillAllowed(s, !!emp)) {
     await db().delete(sessions).where(eq(sessions.idHash, hash));
     return null;
   }
   if (now - s.lastSeenAt.getTime() > TOUCH_MS) {
     await db().update(sessions).set({ lastSeenAt: new Date(now) }).where(eq(sessions.idHash, hash));
   }
-  return { ...emp, role: s.role ?? "viewer", csrf: s.csrf };
+  return { email: s.email, name: emp?.name || s.name || s.email, role: s.role ?? "viewer", csrf: s.csrf };
 }
 
 export async function requireUser(req: Request): Promise<CurrentUser> {

@@ -23,8 +23,9 @@ export class DbDirectory implements Directory {
   async lookup(email: string): Promise<Employee | null> {
     const e = email.trim().toLowerCase();
     if (!e) return null;
+    // Local/tests stand-in for the Employees tab: only active rows (queued / blocked people are not "on the Sheet").
     const [u] = await db().select().from(users).where(eq(users.email, e)).limit(1);
-    return u ? { email: u.email, name: u.name, role: u.role } : null;
+    return u && u.status === "active" ? { email: u.email, name: u.name, role: u.role } : null;
   }
 }
 

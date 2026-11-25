@@ -56,7 +56,7 @@ const NAV = [
   { step: "4 · Báo cáo" },
   { id: "bao-cao", label: "Báo cáo", short: "Báo cáo", icon: "chart" },
   { step: "Hệ thống" },
-  { id: "quan-tri", label: "Quản trị", short: "Quản trị", icon: "sliders", perm: "admin" },
+  { id: "quan-tri", label: "Quản trị", short: "Quản trị", icon: "sliders", perm: "admin", badge: () => (state.config && state.config.pendingUsers) || 0 }, // số người chờ duyệt
   { id: "gioi-thieu", label: "Giới thiệu & release note", short: "Giới thiệu", icon: "help", badge: () => (about.hasNews() ? 1 : 0) },
   { step: "5 · Học từ dữ liệu", feature: "dataSync" },
   { id: "du-lieu", label: "Dữ liệu & đồng bộ", short: "Dữ liệu", icon: "data", feature: "dataSync", badge: () => state.reviewQueue.length + state.conflicts.length },

@@ -19,7 +19,7 @@ const bytes = (n) => (n == null ? "—" : n >= 1 << 30 ? (n / (1 << 30)).toFixed
 const dur = (s) => (s >= 86400 ? `${Math.floor(s / 86400)} ngày ${Math.floor((s % 86400) / 3600)} giờ` : s >= 3600 ? `${Math.floor(s / 3600)} giờ ${Math.floor((s % 3600) / 60)} phút` : `${Math.floor(s / 60)} phút`);
 const pct = (n) => `${Math.round(n ?? 0)}%`;
 const cores = (limitPct) => (limitPct / 100).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-const waiting = () => (cache.users?.users || []).filter((u) => u.role === "viewer" && Date.now() - new Date(u.createdAt) < 14 * 864e5).length;
+const waiting = () => (cache.users ? cache.users.users.filter((u) => u.status === "pending").length : state.config?.pendingUsers || 0);
 const meter = (used, total, warnAt = 0.8) => { const p = total ? Math.min(100, Math.round((used / total) * 100)) : 0; return `<span class="bar ${p >= warnAt * 100 ? "bar-warning" : ""}"><i style="width:${p}%"></i></span><span class="dt-sub">${p}%</span>`; };
 const JOB = { sheet_import: "Nhập Google Sheet (tự động)", sheet_import_api: "Nhập Google Sheet (từ app)", metrics: "Chỉ số YouTube & theo dõi bài" };
 const FB_STATUS = { new: ["Mới", "badge-primary"], doing: ["Đang xử lý", "badge-warning"], done: ["Đã xong", "badge-success"], wontfix: ["Không làm", ""] };
@@ -107,44 +107,95 @@ function jobCard(title, j, every) {
     <a class="link-btn" href="#/quan-tri?tab=dong-bo">Đổi lịch hoặc chạy ngay</a></section>`;
 }
 
-/* ---------- Người dùng: ai đã đăng nhập, vai trò, cấp quyền ---------- */
+/* ---------- Người dùng: hàng đợi chờ duyệt · đang dùng · đã chặn ---------- */
 const ROLE_HELP = [
   ["viewer", "Chỉ xem creator, campaign, báo cáo. Không thấy giá, liên hệ; không sửa được. Mặc định cho người mới."],
   ["planner", "Xem giá và liên hệ, tạo / sửa campaign của mình, sửa creator."],
   ["manager", "Như Planner và xem, quản lý mọi campaign của team."],
   ["admin", "Toàn quyền, gồm Quản trị: người dùng, đồng bộ, góp ý, campaign đã xoá."],
 ];
+const USER_VIEWS = [["cho-duyet", "Chờ duyệt", "pending"], ["dang-dung", "Đang dùng", "active"], ["da-chan", "Đã chặn", "blocked"]];
+let userView = null;
+const USER_ERR = { cannot_change_own_account: "Không tự đổi / chặn tài khoản của mình — nhờ Admin khác.", last_admin: "Phải còn ít nhất một Admin đang dùng.", already_active: "Người này đã được duyệt rồi.", not_blocked: "Người này không còn trong danh sách chặn.", not_active: "Chỉ đổi vai trò cho người đang dùng." };
+const roleSelect = (attr, value, label, disabled = "") => `<select class="select" ${attr} aria-label="${esc(label)}" ${disabled}>${Object.keys(ROLES).map((k) => `<option value="${k}" ${k === value ? "selected" : ""}>${ROLES[k].label}</option>`).join("")}</select>`;
+async function userOp(body, okTitle, okMsg) {
+  try {
+    cache.users = await api("/admin/users", { method: "POST", body });
+    if (state.config) state.config.pendingUsers = cache.users.users.filter((u) => u.status === "pending").length;
+    toast(okTitle, okMsg);
+  } catch (err) {
+    toast("Chưa làm được", USER_ERR[err.body?.error] || "Lỗi " + err.message, "danger");
+  }
+  refresh();
+}
 async function people(el) {
   const r = await load("users", "/admin/users", el);
   if (!r) return;
   const me = (state.user?.email || "").toLowerCase();
-  const list = r.users || [];
-  const newbies = list.filter((u) => u.role === "viewer" && Date.now() - new Date(u.createdAt) < 14 * 864e5);
+  const all = r.users || [];
+  const by = (st) => all.filter((u) => u.status === st);
+  if (!userView) userView = by("pending").length ? "cho-duyet" : "dang-dung";
+  const [, , st] = USER_VIEWS.find(([k]) => k === userView) || USER_VIEWS[1];
+  const list = by(st);
+  const when = (iso) => (iso ? relTime(iso) : "—");
+  const rows = {
+    pending: (u) => `<tr data-row="${esc(u.email)}">
+        <td><strong>${esc(u.name)}</strong></td><td class="faint">${esc(u.email)}</td><td>${when(u.requestedAt || u.createdAt)}</td>
+        <td>${roleSelect(`data-approve-role="${esc(u.email)}"`, "viewer", `Vai trò khi duyệt ${u.name}`)}</td>
+        <td class="t-right"><div class="row-wrap" style="justify-content:flex-end"><button class="btn btn-primary btn-sm" type="button" data-approve="${esc(u.email)}">${icon("check", 14)} Duyệt</button><button class="btn btn-ghost btn-sm" type="button" data-block="${esc(u.email)}">Chặn</button></div></td></tr>`,
+    active: (u) => { const self = u.email.toLowerCase() === me; return `<tr data-row="${esc(u.email)}">
+        <td><strong>${esc(u.name)}</strong>${self ? ` <span class="badge">Bạn</span>` : ""}${u.approvedAt ? ` <span class="badge" title="Được Admin duyệt (không có trong tab Employees)">Đã duyệt</span>` : ""}</td>
+        <td class="faint">${esc(u.email)}</td><td>${when(u.lastLoginAt)}</td>
+        <td>${roleSelect(`data-role="${esc(u.email)}"`, u.role, `Vai trò của ${u.name}`, self ? `disabled title="Không tự đổi vai trò của mình — nhờ Admin khác."` : "")}</td>
+        <td class="t-right">${self ? "" : `<button class="btn btn-ghost btn-sm" type="button" data-block="${esc(u.email)}">Chặn</button>`}</td></tr>`; },
+    blocked: (u) => `<tr data-row="${esc(u.email)}">
+        <td><strong>${esc(u.name)}</strong></td><td class="faint">${esc(u.email)}</td><td>${when(u.blockedAt)}${u.blockedBy ? `<span class="dt-sub">bởi ${esc(u.blockedBy)}</span>` : ""}</td><td></td>
+        <td class="t-right"><button class="btn btn-sm" type="button" data-unblock="${esc(u.email)}">${icon("sync", 14)} Bỏ chặn</button></td></tr>`,
+  };
+  const HEAD = {
+    pending: ["Tên", "Email", "Xin vào", "Vai trò khi duyệt", ""],
+    active: ["Tên", "Email", "Đăng nhập gần nhất", "Vai trò", ""],
+    blocked: ["Tên", "Email", "Chặn lúc", "", ""],
+  };
+  const EMPTY = {
+    pending: ["Không có ai chờ duyệt", "Người lạ đăng nhập bằng Google sẽ xuất hiện ở đây để bạn duyệt hoặc chặn."],
+    active: ["Chưa có ai", ""],
+    blocked: ["Chưa chặn ai", "Bấm “Chặn” ở hàng đợi hoặc danh sách đang dùng. Chặn nhầm thì bỏ chặn ở đây."],
+  };
+  const HINT = {
+    pending: "Người đăng nhập bằng Google nhưng không có trong tab Employees. Chọn vai trò rồi bấm Duyệt; email lạ thì bấm Chặn.",
+    active: "Nhân sự trong tab Employees và người đã được duyệt. Đổi vai trò ở cột “Vai trò”; bấm Chặn để đăng xuất họ ngay.",
+    blocked: "Những email bị chặn không đăng nhập được (kể cả khi có trong tab Employees). Bỏ chặn sẽ đưa họ về hàng đợi chờ duyệt.",
+  };
   el.innerHTML = `
-    ${newbies.length ? `<div class="card card-pad welcome-news">${icon("person", 18)}<span><strong>${newbies.length} người mới đang ở quyền Viewer</strong> — chỉ xem, chưa thấy giá / liên hệ. Chọn vai trò phù hợp ở cột “Vai trò”.</span></div>` : ""}
-    <section class="card" data-tour="users-table"><div class="card-head"><h3>Người dùng (${list.length})</h3><span class="faint">Ai được đăng nhập do tab Employees trên Google Sheet quyết định; vai trò đặt ở đây.</span></div>
-      <div class="dt-wrap"><table class="dt"><thead><tr><th>Tên</th><th>Email</th><th>Vai trò</th><th>Đăng nhập gần nhất</th></tr></thead><tbody>
-      ${list.map((u) => { const self = u.email.toLowerCase() === me; const isNew = newbies.includes(u); return `<tr>
-        <td><strong>${esc(u.name)}</strong>${self ? ` <span class="badge">Bạn</span>` : ""}${isNew ? ` <span class="badge badge-primary">Mới</span>` : ""}</td>
-        <td class="faint">${esc(u.email)}</td>
-        <td><select class="select" data-role="${esc(u.email)}" aria-label="Vai trò của ${esc(u.name)}" ${self ? `disabled title="Không tự đổi vai trò của mình — nhờ Admin khác."` : ""}>${Object.keys(ROLES).map((k) => `<option value="${k}" ${k === u.role ? "selected" : ""}>${ROLES[k].label}</option>`).join("")}</select></td>
-        <td>${u.lastLoginAt ? relTime(u.lastLoginAt) : "—"}</td></tr>`; }).join("")}
-      </tbody></table></div></section>
+    <div class="segmented" role="tablist" aria-label="Danh sách người dùng" data-tour="users-views">${USER_VIEWS.map(([k, l, s]) => `<button type="button" role="tab" data-uview="${k}" aria-selected="${userView === k}" aria-pressed="${userView === k}">${l} <span class="badge ${s === "pending" && by(s).length ? "badge-primary" : ""}">${by(s).length}</span></button>`).join("")}</div>
+    <section class="card" data-tour="users-table"><div class="card-head"><h3>${USER_VIEWS.find(([k]) => k === userView)[1]} (${list.length})</h3></div><p class="faint users-hint">${HINT[st]}</p>
+      ${list.length ? `<div class="dt-wrap"><table class="dt"><thead><tr>${HEAD[st].map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${list.map(rows[st]).join("")}</tbody></table></div>`
+        : `<div class="card-pad">${emptyState({ pending: "done", active: "list", blocked: "lock" }[st], EMPTY[st][0], EMPTY[st][1])}</div>`}
+    </section>
     <section class="card card-pad stack"><h3>Các vai trò</h3><ul class="bullets">${ROLE_HELP.map(([k, t]) => `<li><strong>${ROLES[k].label}</strong> — ${t}</li>`).join("")}</ul>
-      <p class="faint">Người đăng nhập lần đầu luôn là Viewer (ít quyền nhất). Muốn chặn hẳn ai đó: xoá họ khỏi tab Employees trên Sheet — phiên đăng nhập hết hiệu lực ngay.</p></section>`;
-  delegate(el, "change", "[data-role]", async (e, sel) => {
-    const email = sel.dataset.role, role = sel.value, before = list.find((u) => u.email === email)?.role;
+      <p class="faint">Nhân sự trong tab Employees vào được ngay với quyền Viewer; người ngoài phải chờ duyệt. Đổi vai trò áp dụng ở lần tải trang kế tiếp của họ.</p></section>`;
+  delegate(el, "click", "[data-uview]", (e, b) => { userView = b.dataset.uview; refresh(); });
+  delegate(el, "click", "[data-approve]", (e, b) => {
+    const email = b.dataset.approve, role = $(`[data-approve-role="${CSS.escape(email)}"]`, el).value;
+    b.disabled = true;
+    userOp({ op: "approve", email, role }, "Đã duyệt", `${email} vào được với quyền ${ROLES[role].label}. Họ chỉ cần đăng nhập lại bằng Google.`);
+  });
+  delegate(el, "click", "[data-block]", (e, b) => {
+    const email = b.dataset.block;
+    if (!confirm(`Chặn ${email}?\n\nHọ bị đăng xuất ngay và không đăng nhập được nữa (kể cả khi có trong tab Employees). Không xoá dữ liệu gì.\nChặn nhầm: vào mục “Đã chặn” và bấm “Bỏ chặn”.`)) return;
+    b.disabled = true;
+    userOp({ op: "block", email }, "Đã chặn", `${email} không vào được nữa. Xem lại ở mục “Đã chặn”.`);
+  });
+  delegate(el, "click", "[data-unblock]", (e, b) => {
+    b.disabled = true;
+    userOp({ op: "unblock", email: b.dataset.unblock }, "Đã bỏ chặn", `${b.dataset.unblock} về lại hàng đợi “Chờ duyệt”.`);
+  });
+  delegate(el, "change", "[data-role]", (e, sel) => {
+    const email = sel.dataset.role, role = sel.value, before = all.find((u) => u.email === email)?.role;
     if (before === "admin" && role !== "admin" && !confirm(`Bỏ quyền Admin của ${email}?\n\nHọ sẽ không vào được Quản trị nữa. Bạn đổi lại được bất cứ lúc nào.`)) { sel.value = before; return; }
     sel.disabled = true;
-    try {
-      cache.users = await api("/admin/users", { method: "POST", body: { email, role } });
-      toast("Đã đổi vai trò", `${email} → ${ROLES[role].label}. Áp dụng ngay ở lần tải trang kế tiếp của họ.`);
-      refresh();
-    } catch (err) {
-      sel.value = before; sel.disabled = false;
-      const why = { cannot_change_own_role: "Không tự đổi vai trò của mình.", last_admin: "Phải còn ít nhất một Admin." }[err.body?.error] || "Lỗi " + err.message;
-      toast("Chưa đổi được", why, "danger");
-    }
+    userOp({ op: "role", email, role }, "Đã đổi vai trò", `${email} → ${ROLES[role].label}. Áp dụng ở lần tải trang kế tiếp của họ.`);
   });
 }
 
