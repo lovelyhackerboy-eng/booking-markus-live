@@ -36,20 +36,20 @@ Máy dev **không** chứa dữ liệu thật: seed chỉ chạy khi host là m�
 
 ## Vai trò
 
-| Vai trò | Lấy từ cột Role trong tab Employees | Quyền |
-|---|---|---|
-| admin | Admin, Owner | giá, liên hệ, sửa, xác minh, quản trị, mọi campaign |
-| manager | Manager, Quản lý | giá, liên hệ, sửa, xác minh, mọi campaign |
-| planner | Planner, Account, Booker | giá, liên hệ, sửa, xác minh; campaign của mình + được mời |
-| viewer | còn lại | hồ sơ công khai; campaign được mời |
+Từ v1.2.0, vai trò nằm ở bảng `users` (Admin đổi ở Quản trị → Người dùng), **không** đọc từ cột Role của tab Employees. Đăng nhập lần đầu luôn là viewer. Từ v1.3.0: tab Employees hoặc Admin duyệt thì được vào; người lạ vào hàng đợi; bị chặn thì không vào được (`lib/auth/access.ts`).
 
-Khác PHP: PHP gộp Manager vào planner; v2 có vai trò Quản lý riêng.
+| Vai trò | Quyền |
+|---|---|
+| admin | giá, liên hệ, sửa, xác minh, quản trị, mọi campaign |
+| manager | giá, liên hệ, sửa, xác minh, mọi campaign |
+| planner | giá, liên hệ, sửa, xác minh; campaign của mình + được mời |
+| viewer | hồ sơ công khai; campaign được mời |
 
 ## API hiện có
 
 | Route | Ai gọi | Ghi chú |
 |---|---|---|
-| `POST /v2/api/auth/google` `{idToken}` | ai cũng gọi được (cùng origin) | Email không có trong Employees → 401 `not_authorized` |
+| `POST /v2/api/auth/google` `{idToken}` | ai cũng gọi được (cùng origin) | Employees / đã duyệt → 200 + phiên; người lạ → 202 `{pending:true}` (hàng đợi); bị chặn → 403 `blocked` |
 | `GET /v2/api/auth/session` | đã đăng nhập | user, role, perms, csrf |
 | `POST /v2/api/auth/logout` | đã đăng nhập + `X-CSRF-Token` | |
 | `GET /v2/api/creators`, `/v2/api/creators/:id` | đã đăng nhập | Cắt cột theo vai trò |

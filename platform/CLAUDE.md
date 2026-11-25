@@ -2,6 +2,8 @@
 
 Áp dụng cho mọi thay đổi trong `platform/` (người hay agent đều vậy).
 
+> **Người / agent mới tiếp quản:** đọc [handoff.md](handoff.md) trước: hiện trạng, phong cách thiết kế, lỗi đang tồn tại, lộ trình, bẫy đã gặp.
+
 ## 1. UX lên đầu
 - Mỗi tính năng phải dùng được ngay mà không cần hỏi: nhãn tiếng Việt rõ nghĩa, hành động chính nổi bật, có trạng thái rỗng / đang tải / lỗi dễ hiểu.
 - Thao tác nguy hiểm (xoá, hoàn thành campaign…) luôn có hộp xác nhận nói rõ **hậu quả** và **cách hoàn tác**.
