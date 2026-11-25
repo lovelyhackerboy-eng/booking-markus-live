@@ -13,6 +13,7 @@
 
 | Câu hỏi | Trả lời |
 |---|---|
+| **Nền tảng đã đổi?** | **Có.** Từ 25/11/2026, v1 (PHP, thư mục `public/` ở gốc repo) đã ngừng; v2 (`platform/`, Next.js + MariaDB) là bản chính thức. v2 vẫn dùng một số file của v1 trên host. Xem **mục 0b** trước khi làm gì. |
 | App là gì? | Công cụ nội bộ của Markus (agency KOL/KOC). Gồm tìm creator, chạy campaign (Nháp → Đang chạy → Hoàn thành), kéo thả tiến độ liên hệ, theo dõi bài đăng, báo cáo, quản trị. |
 | Chạy ở đâu? | https://booking.markus.agency/v2. Trang gốc `/` chuyển 302 sang `/v2/`; app PHP cũ (v1) đã ngừng phục vụ web từ 25/11/2026. |
 | Stack | Next.js 15 (chỉ làm API và phục vụ file) + **UI bằng JS thuần** trong `ui/` (không dùng React cho giao diện) + Drizzle + MariaDB 10.6 + zod 4. Node 22. |
@@ -22,6 +23,58 @@
 | Đăng nhập | Google Sign-In. Người có trong tab Employees vào ngay (quyền Viewer). Người lạ vào hàng đợi chờ Admin duyệt. Vai trò nằm trong DB, không lấy từ Sheet. |
 | Kiểm tra | `tsc` + 131 test vitest (unit + API trên MariaDB thật). Không có CI. |
 | Deploy | **Làm tay** từ máy dev qua SSH (mục 4). Không có auto build hay auto deploy. |
+
+---
+
+## 0b. ĐÃ ĐỔI NỀN TẢNG: v1 (PHP) → v2 (Next.js + MariaDB)
+
+> Người tiếp quản cần nắm phần này trước tiên. Repo vẫn chứa cả hai bản. Thư mục `public/` ở gốc repo là **v1 đã ngừng**; chỉ `platform/` là bản đang chạy.
+
+### Mốc thời gian
+| Ngày (2026) | Sự kiện |
+|---|---|
+| 17/11 | Chụp mã nguồn v1 đang chạy vào repo (`public/`, README, SETUP ở gốc) để bàn giao |
+| 19–20/11 | Quyết định **không** sửa tiếp v1, chuyển thẳng sang nền tảng mới. v2 0.2.0 chạy song song ở `/v2` |
+| 21/11 | Nhập Sheet tự động mỗi 15 phút; AI tìm creator |
+| 25/11 | **v2 thành bản chính thức**: `/` và mọi đường dẫn v1 chuyển 302 sang `/v2/`. v1 ngừng phục vụ web (file vẫn giữ). Cùng ngày lên v1.0.0 → v1.3.0 |
+
+### So sánh
+| | v1 (đã ngừng) | v2 (đang chạy) |
+|---|---|---|
+| Mã nguồn | `public/` ở gốc repo (PHP 7.4, JS thuần) | `platform/` (Next.js 15 + TypeScript cho API, UI JS thuần trong `ui/`) |
+| Địa chỉ | `booking.markus.agency/` (nay chuyển 302 sang `/v2/`) | `booking.markus.agency/v2` |
+| Trên host | Thư mục web `~/booking.markus.agency/` | App Node (Passenger) `~/markus-v2-app/`, gắn vào `/v2` qua `~/booking.markus.agency/v2/.htaccess` |
+| Lưu dữ liệu | Google Sheet (đọc thẳng) + file JSON `~/booking-markus-state/db.json` | **MariaDB** `thestvco_markus_v2` (24 bảng). Sheet vẫn là nguồn creator, nhập vào DB mỗi 15 phút |
+| Vai trò | Lấy từ cột Role tab Employees (admin / planner / viewer) | Bảng `users` do Admin quản lý (admin / manager / planner / viewer). Sheet chỉ quyết định ai được vào; người lạ vào hàng đợi duyệt |
+| Danh sách / Shortlist | Hai màn "Danh sách dự án" và "Shortlist" | Gộp thành **Campaign** (Ứng viên → Liên hệ → Theo dõi → Báo cáo), có vòng đời Nháp / Đang chạy / Hoàn thành |
+| Mới chỉ có ở v2 | | Chỉ số view TB / ER, theo dõi bài đăng, báo cáo, Quản trị, hướng dẫn trong app, release note |
+| Deploy | Chép file lên thư mục web | Build ở máy dev (`deploy/package.sh`) → `deploy/host-deploy.sh` qua SSH ([DEPLOY.md](DEPLOY.md)) |
+| Kiểm tra | Không có test tự động | `tsc` + 131 test vitest |
+
+### Dữ liệu đã chuyển hay chưa (đếm trên production 25/11/2026)
+- **Creator:** 587 creator nhập từ Sheet, **giữ đúng mã uid như v1** (v2 đọc qua chính code v1). Sửa hoặc thêm creator trên v2 thì ghi ngược Sheet.
+- **Workflow v1** (deal, campaign, nội dung, thanh toán trong `db.json`): **0 bản ghi**, nên không có gì phải chuyển. Campaign và booking hiện có (3 campaign, 0 booking) đều tạo trên v2, chỉ nằm trong MariaDB.
+- **Không chuyển (không cần):** phiên đăng nhập, lịch sử AI, activity của v1.
+
+### v2 VẪN DÙNG những phần sau của v1: không được xoá
+| Thứ | Ở đâu trên host | v2 dùng để làm gì |
+|---|---|---|
+| Code PHP `_mk/*.php` | `~/booking.markus.agency/_mk/` | `platform/bridge/*.php` `require` để đọc / ghi Google Sheet (cùng gateway, cùng khoá ghi `sheet-write.lock`) |
+| File khoá | `~/booking.markus.agency/hosting/` | Khoá service account Google (`GOOGLE_SA_PATH`) và khoá DeepSeek (`DEEPSEEK_KEY_PATH`) |
+| Bảng nhận diện creator | `~/booking-markus-state/db.json` (mục `identity`: 614 mục, `quarantine`: 54) | Job nhập Sheet ghép mỗi dòng Sheet với đúng uid creator. Mất file này thì mã creator có thể bị đổi |
+| Google Sign-In | Cùng Client ID với v1 | Cùng origin `booking.markus.agency`, nên dùng chung được. OAuth đang ở chế độ External / Testing (mục 5.2) |
+| Google Sheet | `CREATOR_DB` + tab `Employees` | Nguồn creator; danh sách nhân sự được vào thẳng |
+
+**Muốn bỏ hẳn v1** (đề xuất ở mục 8, "Bớt phụ thuộc v1"):
+1. Viết lại phần đọc / ghi Sheet bằng Node (service account trực tiếp).
+2. Chuyển bảng nhận diện uid vào MariaDB.
+3. Chuyển file khoá sang `~/markus-v2-state/`.
+4. Chỉ khi cả ba xong mới được xoá `~/booking.markus.agency/` và `~/booking-markus-state/`.
+
+### Quay lại v1 (chỉ khi khẩn cấp)
+- Xoá khối `MARKUS V2 IS PRODUCTION` cuối `~/booking.markus.agency/.htaccess`. Bản `.htaccess` trước khi chuyển: `~/markus-v2-state/v1-htaccess-backup-20261125-085812`.
+- Campaign, booking, người dùng và vai trò tạo trên v2 **không** có trong v1.
+- **Không** deploy lại `public/` từ repo: bản trong repo có placeholder thay cho cấu hình thật (xem cảnh báo mục 4.4).
 
 ---
 

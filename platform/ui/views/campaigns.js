@@ -2,7 +2,7 @@
 //   1 · Ứng viên  (cân nhắc, ước tính KPI, so sánh, xuất báo giá)  —[Duyệt]→  2 · Liên hệ (Chưa liên hệ → … → Đã chốt booking)
 // Ai thấy campaign nào (store.visibleLists): người phụ trách + thành viên được mời; Quản lý và Admin thấy tất cả.
 // Thân của từng bước do views/shortlist.js (Ứng viên) và views/lists.js (Liên hệ) vẽ.
-// MVP live: 1 campaign = 1 bản ghi workflow "campaigns" của app cũ (xem PLAN mục 11) — app cũ vẫn mở được cùng bản ghi.
+// Campaign lưu trong MariaDB (bảng campaigns / campaign_entries / campaign_candidates), không còn dùng workflow của app PHP cũ (v1 đã ngừng 25/11/2026).
 
 import { $, esc, icon, delegate, openOverlay, toast, fmtNum, fmtDate } from "../core/ui.js";
 import { state, can, me, getCreator, visibleLists, isMine, getList, setActiveList, shortlistOf, canManageList, setMembers, setCampaignStatus, deleteCampaign, canDeleteList } from "../core/store.js";
