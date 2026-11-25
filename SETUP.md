@@ -1,4 +1,16 @@
-# Setup and operations
+# Setup and operations (v1, đã ngừng — chỉ để tra cứu)
+
+> ## ⚠️ v1 (PHP) ĐÃ NGỪNG — KHÔNG DEPLOY THƯ MỤC `public/`
+> Từ 25/11/2026 bản chính thức là **Markus Creator OS v2** trong [`platform/`](platform/), chạy ở https://booking.markus.agency/v2. Trang gốc `/` chuyển 302 sang `/v2/`.
+>
+> - **Deploy v2:** làm theo [`platform/DEPLOY.md`](platform/DEPLOY.md). Đóng gói ở máy dev bằng `platform/deploy/package.sh`, rồi chạy `platform/deploy/host-deploy.sh` qua SSH. Đọc [`platform/handoff.md`](platform/handoff.md) trước.
+> - **KHÔNG** chép `public/` (hay bất kỳ file nào trong đó) lên `~/booking.markus.agency/`. Làm vậy sẽ:
+>   1. ghi đè `.htaccess` → mất khối chuyển hướng `MARKUS V2 IS PRODUCTION` → **v1 sống lại** ở `/`;
+>   2. thay `_mk/*.php` bằng bản có placeholder (`YOUR_GOOGLE_CLIENT_ID`…) → **hỏng job nhập Sheet và ghi Sheet của v2** (bridge PHP của v2 `require` các file này);
+>   3. người dùng quay về dữ liệu workflow cũ, không thấy campaign / booking tạo trên v2.
+> - **KHÔNG** xoá hay di chuyển `~/booking.markus.agency/` trên host: v2 vẫn dùng `_mk/` và `hosting/` (khoá) ở đó.
+> - Phần dưới đây là tài liệu lịch sử của v1, chỉ để tra cứu.
+
 
 ## Runtime
 Apache/LiteSpeed with PHP source compatible with 7.4; use a supported PHP release after compatibility testing. Required: curl, openssl, mbstring, JSON, sessions, flock and writable private storage. Serve public/ as docroot. Frontend files are deployed assets: no Node build step is needed. Never expose legacy hosting PHP directly.

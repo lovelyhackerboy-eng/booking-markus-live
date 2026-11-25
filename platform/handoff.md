@@ -138,6 +138,11 @@ TEST_DATABASE_URL=mysql://markus:markus-dev@127.0.0.1:3307/markus_v2_test npx vi
 ```
 
 ### 4.4 Deploy (chạy từ máy dev, Git Bash, trong `platform/`)
+> ⚠️ **Chỉ deploy v2.** **Không bao giờ** chép thư mục `public/` ở gốc repo (mã nguồn v1 PHP) lên `~/booking.markus.agency/`. README và SETUP ở gốc repo là tài liệu **lịch sử** của v1, không làm theo. Chép `public/` lên sẽ:
+> - ghi đè `.htaccess`, làm mất chuyển hướng: **v1 chạy lại ở `/`**;
+> - thay `_mk/*.php` bằng bản placeholder: **hỏng job nhập Sheet và ghi Sheet của v2**.
+>
+> Gói v2 chỉ giải nén vào `~/markus-v2-app/`.
 Luật bắt buộc ([CLAUDE.md](CLAUDE.md) mục 2): **tăng `version` trong `package.json`** và **thêm release note ở đầu `ui/data/releases.js`**, cả hai trong cùng commit. Tính năng mới thì kèm **bước hướng dẫn** trong `tour.js` và **câu trả lời mẫu** trong `demo.js`.
 ```
 # 1. sao lưu DB trên host (bắt buộc nếu có migration mới) — xem DEPLOY.md, đọc DATABASE_URL từ ~/markus-v2-state/runtime.env
@@ -149,6 +154,7 @@ scp -P 2210 -i ~/.ssh/id_ed25519 deploy/out/v2-app.tar.gz deploy/out/v2-deps.tar
 ssh -p 2210 -i ~/.ssh/id_ed25519 thestvco@hf41-22013.azdigihost.com 'DEPS=0 bash -s' < deploy/host-deploy.sh
 # 5. kiểm tra
 curl -s https://booking.markus.agency/v2/api/version
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://booking.markus.agency/   # phải là 302 …/v2/ (v1 vẫn tắt)
 ```
 - **Người mới cần SSH key của riêng mình:** chủ tài khoản thêm public key ở cPanel → SSH Access. Cổng **2210** (cổng 22 bị chặn).
 - Quay lại bản trước: sao lưu app nằm ở `~/markus-v2-state/app-backup-*.tgz` (giữ 3 bản), DB ở `db-backup-*.sql.gz`.
@@ -182,7 +188,7 @@ Lịch thật do Admin đặt ở **Quản trị → Đồng bộ tự động**
 - Mọi email Google còn lại (đã xác minh) vào **hàng đợi**, tối đa 300.
 - Lần đăng nhập đầu luôn là **Viewer**. Admin đổi vai trò ở Quản trị → Người dùng.
 - Không tự đổi hay tự chặn chính mình; app luôn giữ ít nhất một Admin.
-- **Cần kiểm tra:** loại OAuth consent của Google Client ID phải là **External**. Nếu là Internal, email ngoài tổ chức bị Google chặn trước khi tới hàng đợi.
+- **Cần xử lý để người ngoài vào được hàng đợi:** theo `SETUP.md` của v1, dự án Google OAuth đang ở chế độ **External / Testing**. Ở chế độ Testing chỉ email có trong danh sách **test users** mới đăng nhập được; người khác bị Google chặn ngay ở bước đăng nhập, trước khi tới hàng đợi của app. Muốn mở cho mọi email Google, chủ dự án cần vào Google Cloud Console → OAuth consent screen → **Publish app** (In production). Ứng dụng chỉ xin `openid email profile` nên thường không cần Google xét duyệt. Hoặc thêm từng email vào test users (tối đa 100).
 
 ### 5.3 Môi trường dev trên Windows
 - Chạy dev: `npm run dev` (cổng 3100). Biến môi trường dùng `DATABASE_URL=mysql://markus:markus-dev@127.0.0.1:3307/markus_v2`, `DIRECTORY=db`, `APP_ORIGIN=http://localhost:3100`. Có sẵn trong `.claude/launch.json` (tên `markus-v2-dev`).
@@ -313,7 +319,7 @@ Nguyên tắc khi thêm tính năng (tóm tắt [CLAUDE.md](CLAUDE.md)):
 ---
 
 ## 9. Việc còn treo cần chủ dự án quyết định
-- Kiểm tra Google OAuth consent type là **External** (mục 5.2).
+- Google OAuth đang ở chế độ **External / Testing**: cần **Publish app** hoặc thêm test users thì người ngoài mới vào được hàng đợi duyệt (mục 5.2).
 - Sửa 3 link YouTube hỏng trên Sheet (mục 6.3).
 - Sheet `CREATOR_DB` đang chia sẻ "ai có link đều sửa được". Nên thu hẹp lại.
 - Từng phát hiện webshell trên một site khác **cùng tài khoản hosting**. Đã khuyến nghị đổi khoá service account Google, mật khẩu cPanel và key DeepSeek; chưa xác nhận đã làm.

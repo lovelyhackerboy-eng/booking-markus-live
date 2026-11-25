@@ -41,6 +41,16 @@ Ghi chú:
 - **Không dùng vitest ≥ 4.1**: npm 10 (đi kèm Node 22, cũng là bản trên hosting) lỗi `Cannot read properties of null (reading 'edgesOut')`. Đang ghim 4.0.18.
 - `package-lock.json` phải tạo trong container Linux (`npm install --package-lock-only`); lock tạo trên Windows thiếu gói tuỳ chọn của Linux và `npm ci` trên Linux sẽ từ chối.
 
+## ⚠️ Chỉ deploy v2 — không bao giờ deploy lại v1
+- Bản deploy duy nhất là gói build từ `platform/` (mục dưới). Gói này giải nén vào `~/markus-v2-app/`, **không** đụng tới `~/booking.markus.agency/`.
+- **Không** chép `public/` ở gốc repo (mã nguồn v1 PHP, có placeholder) lên `~/booking.markus.agency/`. Hậu quả:
+  - mất khối chuyển hướng trong `.htaccess`, v1 chạy lại ở `/`;
+  - `_mk/*.php` bị thay bằng bản placeholder, hỏng job nhập Sheet và chức năng ghi Sheet của v2.
+- Không sửa `~/booking.markus.agency/.htaccess`, trừ khi cố ý bỏ chuyển hướng để quay về v1 (mục "v2 là bản chính thức").
+- Sau mỗi lần deploy, kiểm tra cả hai:
+  - `curl -s -o /dev/null -w "%{http_code} %{redirect_url}" https://booking.markus.agency/` phải ra `302 …/v2/`;
+  - `curl -s https://booking.markus.agency/v2/api/version` phải ra đúng phiên bản vừa deploy.
+
 ## Deploy một bản mới
 
 ```
