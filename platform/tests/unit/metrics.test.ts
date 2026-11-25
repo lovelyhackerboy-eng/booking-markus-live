@@ -64,6 +64,11 @@ describe("YouTube parsing", () => {
     expect(channelPageUrl("https://www.youtube.com/@abc/videos")).toBe("https://www.youtube.com/@abc");
     expect(channelPageUrl("https://youtube.com/channel/UC1234567890123456789012")).toBe("https://www.youtube.com/channel/UC1234567890123456789012");
     expect(channelPageUrl("https://www.youtube.com/watch?v=xyz")).toBeNull();
+    // Legacy custom URLs (youtube.com/<name>) still open the channel — 8 Sheet rows use them (25/11/2026).
+    expect(channelPageUrl("https://www.youtube.com/thunglongfamily")).toBe("https://www.youtube.com/thunglongfamily");
+    expect(channelPageUrl("https://youtube.com/callmeduy/videos")).toBe("https://www.youtube.com/callmeduy");
+    for (const p of ["shorts/abc", "results?search_query=x", "feed/trending", "playlist?list=x", "embed/x", "live/x", "sw.js", "c"])
+      expect(channelPageUrl("https://www.youtube.com/" + p)).toBeNull();
     expect(channelPageUrl("https://evil.example/@abc")).toBeNull();
     expect(channelPageUrl("https://youtube.com.evil.example/@abc")).toBeNull();
     expect(channelPageUrl("javascript:alert(1)")).toBeNull();

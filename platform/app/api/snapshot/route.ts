@@ -11,7 +11,7 @@ import { handle, json } from "@/lib/http";
 import { sheetWriteEnabled } from "@/lib/sheet/bridge";
 import { getSyncSettings } from "@/lib/admin/sync-settings";
 import { APP_VERSION, buildId } from "@/lib/admin/system";
-import { getTutorialSettings, tutorialEpoch } from "@/lib/admin/tutorial";
+import { getTutorialSettings } from "@/lib/admin/tutorial";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export const GET = handle(async (req: Request) => {
     user: { email: u.email, name: u.name, role: u.role, perms: PERMS[u.role] },
     csrf: u.csrf,
     features: { sheetWrite: sheetWriteEnabled() },
-    config: { clientRefreshMinutes: (await getSyncSettings()).clientRefreshMinutes, version: APP_VERSION, build: buildId(), tutorialEpoch: tutorialEpoch(await getTutorialSettings()) },
+    config: { clientRefreshMinutes: (await getSyncSettings()).clientRefreshMinutes, version: APP_VERSION, build: buildId(), tutorialReset: (await getTutorialSettings()).resetAt },
     team,
     creators,
     campaigns,

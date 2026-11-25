@@ -130,13 +130,17 @@ export function demoApi(path, method) {
     { email: "minh@demo.test", name: "Người mới (mẫu)", role: "viewer", lastLoginAt: day(0.1), createdAt: day(0.1) },
     { email: "lan@demo.test", name: "Planner mẫu", role: "planner", lastLoginAt: day(2), createdAt: day(20) },
   ] });
-  if (path === "/admin/tutorial") return Promise.resolve({ ok: true, settings: { resetOnDeploy: true, resetAt: null }, epoch: "demo" });
+  if (path === "/admin/tutorial") return Promise.resolve({ ok: true, settings: { resetAt: null } });
   if (path === "/admin/system") {
     const run = (kind, h, extra) => ({ kind, startedAt: day(h / 24), finishedAt: day(h / 24 - 0.0003), status: "ok", rowsRead: 0, rowsImported: 0, rowsSkipped: 0, error: null, ...extra });
     const m = (used, limit) => ({ used, limit });
     return Promise.resolve({ ok: true, app: { version: "demo", build: "demo", node: "v22", uptimeSec: 3 * 86400 + 5000, rss: 210 * 1048576, heapUsed: 90 * 1048576, cpuPct: 4 },
       plan: { cpu: m(22, 150), memory: m(420 * 1048576, 1536 * 1048576), processes: m(31, 120), entryProcesses: m(3, 100), io: m(120 * 1024, 15 * 1048576), iops: m(4, 1500), disk: m(7.8 * 2 ** 30, 12 * 2 ** 30), mysqlDisk: m(340 * 1048576, 4.75 * 2 ** 30), at: day(0) },
       folders: { app: 95 * 1048576, state: 310 * 1048576 },
+      youtubeIssues: [
+        { creatorId: "DEMO-003", name: "Creator mẫu 3", url: "https://www.youtube.com/@kenh-da-doi-ten", error: "page_404", at: day(0.2) },
+        { creatorId: "DEMO-007", name: "Creator mẫu 7", url: "https://www.youtube.com/watch?v=demo", error: "not_a_channel_url", at: day(0.4) },
+      ],
       database: { bytes: 18 * 1048576, creators: 24, campaigns: 3, campaignsDeleted: 1, clips: 140, posts: 5, creatorsWithMetrics: 24, feedbackNew: 2, sessions: 4 },
       jobs: { import: { startedAt: day(0.005), status: "ok", rows: 24 }, metrics: { startedAt: day(0.02), status: "ok" } }, sync: SYNC, checkedAt: day(0),
       runs: [run("sheet_import", 0.1, { rowsImported: 24 }), run("metrics", 0.5, { rowsRead: 25, rowsImported: 1 }), run("sheet_import", 0.35, { rowsImported: 24 })] });

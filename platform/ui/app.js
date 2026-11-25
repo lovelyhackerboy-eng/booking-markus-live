@@ -3,7 +3,7 @@
 // Muốn thêm hướng visual: (1) tạo styles/ten.css với [data-style="ten"], (2) thêm <link> trong index.html,
 //                         (3) thêm 1 mục vào STYLES dưới đây và vào NATIVE trong script đầu index.html.
 
-import { $, $$, esc, icon, openMenu, toast } from "./core/ui.js";
+import { $, $$, esc, icon, openMenu } from "./core/ui.js";
 import { state, can, on, setNavOpen, ROLES, activeList, campaignHash, canSeeBooking, applySnapshot, FEATURES, reload } from "./core/store.js";
 import { loadSession, loadSnapshot, logout } from "./data/live.js";
 import { renderLogin } from "./views/login.js";
@@ -21,7 +21,6 @@ import * as freshness from "./views/freshness.js";
 import * as reports from "./views/reports.js";
 import * as about from "./views/about.js";
 import * as admin from "./views/admin.js";
-import { CURRENT } from "./data/releases.js";
 import { initFeedback } from "./core/feedback.js";
 import { initTour } from "./core/tour.js";
 
@@ -173,20 +172,10 @@ drawStyle();
   applySnapshot(await loadSnapshot());
   drawUser();
   start($("#main"), () => { drawNav(); refreshContext(); });
-  // Lần đầu / sau mỗi lần deploy: hộp chào + hướng dẫn (đã kèm "có gì mới" nên không báo toast nữa).
-  if (!initTour($("#btn-help"))) whatsNew();
+  // Lần đầu: hộp chào + hướng dẫn. Bản mới: chỉ báo khi có tính năng liên quan tới người này (core/tour.js).
+  initTour($("#btn-help"));
   autoRefresh();
 })();
-
-/* ---------- Có gì mới: lần đầu thấy một phiên bản mới → báo một lần, bấm để xem release note ---------- */
-function whatsNew() {
-  if (!about.hasNews()) return;
-  if (!about.seenVersion()) { about.markSeen(); return; } // người dùng mới: đã có hướng dẫn, không báo thêm
-  setTimeout(() => {
-    toast(`Có bản mới v${CURRENT.version}`, `${CURRENT.title} — mở Giới thiệu để xem có gì mới.`);
-    drawNav();
-  }, 1500);
-}
 
 /* ---------- Tự làm mới dữ liệu theo chu kỳ Admin đặt (Quản trị → Đồng bộ tự động) ---------- */
 // Bỏ qua lượt khi tab ẩn, đang gõ, đang mở hộp thoại / menu hoặc đang ở hướng dẫn — không làm mất thao tác dở.

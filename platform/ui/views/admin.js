@@ -71,6 +71,7 @@ async function system(el) {
       ${jobCard("Nhập Google Sheet", s.jobs.import, s.sync.importMinutes ? `mỗi ${s.sync.importMinutes >= 60 ? s.sync.importMinutes / 60 + " giờ" : s.sync.importMinutes + " phút"}` : "đang tắt")}
       ${jobCard("Chỉ số YouTube & theo dõi bài", s.jobs.metrics, s.sync.metricsHours ? `mỗi ${s.sync.metricsHours} giờ · ${s.sync.metricsBatch} kênh/lượt` : "đang tắt")}
     </div>
+    ${ytIssues(s.youtubeIssues || [])}
     <section class="card"><div class="card-head"><h3>Các lần chạy gần nhất</h3></div>
       ${runs.length ? `<div class="dt-wrap"><table class="dt"><thead><tr><th>Việc</th><th>Bắt đầu</th><th>Thời gian</th><th>Kết quả</th><th class="t-right">Số liệu</th></tr></thead><tbody>
         ${runs.map((r) => `<tr><td>${esc(JOB[r.kind] || r.kind)}</td><td>${fmtDate(r.startedAt)} ${new Date(r.startedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</td><td>${r.finishedAt ? Math.max(1, Math.round((new Date(r.finishedAt) - new Date(r.startedAt)) / 1000)) + " giây" : "đang chạy"}</td>
@@ -79,6 +80,23 @@ async function system(el) {
       </tbody></table></div>` : `<p class="card-pad faint">Chưa có lần chạy nào.</p>`}</section>`;
   delegate(el, "click", "[data-act=sys-refresh]", () => invalidate("sys"));
   timer = setInterval(() => { if (document.contains(el) && !document.hidden) { delete cache.sys; load("sys", "/admin/system", document.createElement("div")); } else clearInterval(timer); }, 30_000);
+}
+const YT_ERR = {
+  not_a_channel_url: ["Link không phải kênh", "Link trỏ tới video / playlist… Dán link trang kênh (youtube.com/@tên)."],
+  page_404: ["Kênh không tồn tại", "YouTube báo không có trang này: kênh đã đổi tên @ hoặc bị xoá. Tìm lại kênh và dán link mới."],
+  no_channel_id: ["Không đọc được kênh", "Trang mở được nhưng không nhận ra kênh. Kiểm tra lại link."],
+};
+const ytErr = (code) => YT_ERR[code] || (/^(page|rss)_\d+$/.test(code || "") ? ["YouTube tạm lỗi (" + code + ")", "Thường tự hết ở lượt sau."] : [code || "Lỗi", ""]);
+function ytIssues(list) {
+  if (!list.length) return "";
+  const groups = {};
+  list.forEach((x) => { (groups[x.error] ||= []).push(x); });
+  return `<section class="card" data-tour="yt-issues"><div class="card-head"><h3>${icon("alert", 16)} ${list.length} kênh YouTube không đọc được chỉ số</h3>
+      <span class="faint">Sửa link ở cột YouTube trên Google Sheet CREATOR_DB — lượt đọc sau tự cập nhật.</span></div>
+    ${Object.entries(groups).map(([code, xs]) => { const [label, hint] = ytErr(code); return `<details class="card-pad" ${Object.keys(groups).length === 1 ? "open" : ""}>
+      <summary><strong>${esc(label)}</strong> · ${xs.length} kênh <span class="faint">— ${esc(hint)}</span></summary>
+      <ul class="bullets">${xs.map((x) => `<li><a href="#/creator/${encodeURIComponent(x.creatorId)}?tab=kenh">${esc(x.name)}</a> · <a class="faint" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(String(x.url).replace(/^https?:\/\/(www\.)?/, ""))}</a> <span class="faint">· thử lần cuối ${relTime(x.at)}</span></li>`).join("")}</ul></details>`; }).join("")}
+  </section>`;
 }
 function jobCard(title, j, every) {
   const ok = j?.status === "ok";
@@ -155,8 +173,8 @@ async function sync(el) {
         <p class="faint">Trang đang mở tự tải lại dữ liệu mới theo chu kỳ (bỏ qua khi người dùng đang gõ hoặc mở hộp thoại).</p>
         <div class="field"><label for="sy-client">Chu kỳ</label>${sel("sy-client", o.clientRefreshMinutes, s.clientRefreshMinutes, (x) => (x === 0 ? "Chỉ khi mở trang" : `Mỗi ${x} phút`))}</div></section>
       <section class="card card-pad stack" data-tour="tutorial-reset"><h3>${icon("help", 16)} Hướng dẫn cho người dùng</h3>
-        <p class="faint">Khi hướng dẫn được đặt lại, lần mở app kế tiếp mỗi người thấy hộp chào và xem lại hướng dẫn từ đầu (trên dữ liệu mẫu).</p>
-        <label class="check"><input type="checkbox" id="tu-deploy" ${tu.settings.resetOnDeploy ? "checked" : ""} /> <span>Sau mỗi lần cập nhật app (deploy), đưa mọi người về hướng dẫn</span></label>
+        <p class="faint">Cập nhật app không bắt ai xem lại hướng dẫn: người đã xem thì thôi, người mới luôn thấy hộp chào. Bản mới chỉ được báo cho người có tính năng liên quan (theo vai trò).</p>
+        <p class="faint">Khi app thay đổi lớn, bấm nút dưới: lần mở app kế tiếp, mọi người thấy hộp chào và xem lại hướng dẫn từ đầu (trên dữ liệu mẫu).</p>
         <div class="row-wrap"><button class="btn" type="button" data-act="tu-now">${icon("sync", 16)} Đưa mọi người về hướng dẫn ngay</button>
           <span class="faint">${tu.settings.resetAt ? `Lần đặt lại gần nhất: ${relTime(tu.settings.resetAt)}` : ""}</span></div></section>
     </div>
@@ -171,12 +189,6 @@ async function sync(el) {
     b.disabled = true;
     try { const res = await api("/admin/sync", { method: "POST", body: { settings: next } }); cache.sync = { ...r, settings: res.settings }; delete cache.sys; toast("Đã lưu lịch đồng bộ", "Áp dụng từ lần đánh thức tiếp theo."); }
     catch (err) { toast("Chưa lưu được", "Lỗi " + err.message, "danger"); }
-    b.disabled = false;
-  });
-  delegate(el, "change", "#tu-deploy", async (e, b) => {
-    b.disabled = true;
-    try { const res = await api("/admin/tutorial", { method: "POST", body: { resetOnDeploy: b.checked } }); cache.tut = res; toast(b.checked ? "Đã bật" : "Đã tắt", b.checked ? "Mỗi lần cập nhật app, mọi người sẽ xem lại hướng dẫn." : "Cập nhật app sẽ không đặt lại hướng dẫn nữa."); }
-    catch (err) { b.checked = !b.checked; toast("Chưa lưu được", "Lỗi " + err.message, "danger"); }
     b.disabled = false;
   });
   delegate(el, "click", "[data-act=tu-now]", async (e, b) => {

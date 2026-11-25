@@ -6,12 +6,12 @@
 
 import { $, esc, icon, toast, openOverlay, delegate } from "./ui.js";
 import { state, can, enterDemo, exitDemo, moveEntry, getList, emit } from "./store.js";
-import { CURRENT } from "../data/releases.js";
+import { CURRENT, RELEASES } from "../data/releases.js";
 import { makeDemo, demoApi } from "./demo.js";
 import { inDemo } from "../data/live.js";
 import { invalidate as invalidateReports } from "../views/reports.js";
 import { invalidateAll as invalidateAdmin } from "../views/admin.js";
-import { seenVersion } from "../views/about.js";
+import { seenVersion, markSeen } from "../views/about.js";
 
 const KEY = "markus_v2_tour";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
@@ -63,10 +63,11 @@ export const CHECKPOINTS = [
     { sel: "#btn-help", title: "Xem lại hướng dẫn", body: "Mở lại danh sách checkpoint bất cứ lúc nào. Hướng dẫn cho tính năng mới có nhãn “Mới”." },
   ] },
   { id: "admin", since: "1.0.0", perm: "admin", title: "Quản trị hệ thống", goal: "Theo dõi máy chủ, lịch đồng bộ, góp ý và campaign đã xoá.", steps: [
+    { since: "1.2.1", hash: "#/quan-tri?tab=he-thong", sel: "[data-tour=yt-issues]", title: "Kênh YouTube lỗi link", body: "Danh sách kênh không đọc được chỉ số (link không tồn tại, không phải link kênh…). Sửa link trên Google Sheet CREATOR_DB — lượt đọc sau tự cập nhật." },
     { hash: "#/quan-tri?tab=he-thong", sel: ".report-kpis", title: "Tình trạng hệ thống", body: "CPU, RAM, ổ đĩa và số tiến trình so với giới hạn gói hosting (không phải cả máy chủ dùng chung), dung lượng database và lần chạy gần nhất của các việc tự động." },
-    { hash: "#/quan-tri?tab=nguoi-dung", sel: "[data-tour=users-table]", title: "Cấp quyền cho người dùng", body: "Người đăng nhập lần đầu luôn là Viewer (chỉ xem). Chọn vai trò ở cột “Vai trò” để cấp thêm quyền; người mới có nhãn “Mới”." },
+    { since: "1.2.0", hash: "#/quan-tri?tab=nguoi-dung", sel: "[data-tour=users-table]", title: "Cấp quyền cho người dùng", body: "Người đăng nhập lần đầu luôn là Viewer (chỉ xem). Chọn vai trò ở cột “Vai trò” để cấp thêm quyền; người mới có nhãn “Mới”." },
     { hash: "#/quan-tri?tab=dong-bo", sel: "[data-act=sy-save]", title: "Lịch đồng bộ tự động", body: "Đặt tần suất nhập Google Sheet, đọc chỉ số YouTube, số kênh mỗi lượt và chu kỳ làm mới trên trình duyệt. Có nút chạy ngay." },
-    { sel: "[data-tour=tutorial-reset]", title: "Đưa mọi người về hướng dẫn", body: "Mặc định, mỗi lần cập nhật app mọi người thấy hộp chào và xem lại hướng dẫn. Tắt được, hoặc bấm đặt lại ngay khi có thay đổi lớn." },
+    { sel: "[data-tour=tutorial-reset]", title: "Đưa mọi người về hướng dẫn", body: "Cập nhật app không bắt ai xem lại hướng dẫn. Khi có thay đổi lớn, bấm nút này để mọi người thấy lại hộp chào và hướng dẫn từ đầu." },
     { hash: "#/quan-tri?tab=gop-y", sel: ".admin-tabs", title: "Hộp góp ý", body: "Đổi trạng thái (Mới → Đang xử lý → Đã xong) và ghi phản hồi — người gửi thấy ngay trong hộp Góp ý của họ." },
     { hash: "#/quan-tri?tab=da-xoa", sel: ".admin-tabs", title: "Campaign đã xoá", body: "Khôi phục campaign bị xoá nhầm, về đúng trạng thái trước khi xoá." },
   ] },
@@ -191,18 +192,55 @@ function go(d) {
 function markDone(id) { const done = new Set(read().done || []); done.add(id); write({ done: [...done] }); }
 
 /** Chạy một (hoặc nhiều) checkpoint trên dữ liệu mẫu. */
-export async function start(ids) {
+export async function start(ids, { onlyAfter } = {}) {
   const cps = CHECKPOINTS.filter((c) => ids.includes(c.id));
   if (!cps.length) return;
+  const all = cps.flatMap((c) => c.steps.map((s, k) => ({ ...s, cpId: c.id, cpTitle: c.title, last: k === c.steps.length - 1 })))
+    .filter((s) => (!s.perm || can(s.perm)) && (!onlyAfter || newer(s.since || CHECKPOINTS.find((c) => c.id === s.cpId).since || "0", onlyAfter)));
+  if (!all.length) return;
   closePanel();
   const back = location.hash;
   if (!inDemo()) { invalidateReports(); invalidateAdmin(); enterDemo(makeDemo(), demoApi); }
-  cur = { all: cps.flatMap((c) => c.steps.map((s, k) => ({ ...s, cpId: c.id, cpTitle: c.title, last: k === c.steps.length - 1 }))), i: 0, back };
+  cur = { all, i: 0, back, newsOnly: !!onlyAfter };
   show();
 }
+
+/* ---------- Bản mới: chỉ báo khi có tính năng liên quan tới người này (theo vai trò) ----------
+   Mục release note có thể là chuỗi (mọi người) hoặc { t, perm } (chỉ vai trò có quyền đó); release `notify: false`
+   = chỉ sửa lỗi / nội bộ, không báo. Chỉ phần "new" và "improved" được tính là tính năng. */
+const itemText = (x) => (typeof x === "string" ? x : x.t);
+const forMe = (x) => typeof x === "string" || !x.perm || can(x.perm);
+export function newsFor(since) {
+  const items = RELEASES.filter((r) => newer(r.version, since) && r.notify !== false)
+    .flatMap((r) => [...(r.new || []), ...(r.improved || [])].filter(forMe).map(itemText));
+  const steps = visibleCheckpoints().flatMap((c) => c.steps.filter((s) => (!s.perm || can(s.perm)) && newer(s.since || c.since || "0", since)).map(() => c.id));
+  return { items, steps: [...new Set(steps)], count: steps.length };
+}
+function newsDialog(news, since) {
+  const o = openOverlay({
+    kind: "modal",
+    title: `Có gì mới cho bạn ở v${CURRENT.version}`,
+    body: `<div class="welcome">
+      <p class="welcome-lead">${icon("sparkles", 20)}<span>App vừa được cập nhật. Đây là những thay đổi liên quan tới công việc của bạn:</span></p>
+      <ul class="bullets">${news.items.slice(0, 6).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      ${news.items.length > 6 ? `<p class="faint">…và ${news.items.length - 6} thay đổi khác trong release note.</p>` : ""}
+      ${news.count ? `<p class="welcome-safe">${icon("help", 16)}<span>Có <strong>${news.count} bước hướng dẫn mới</strong> chỉ đúng phần vừa thay đổi (khoảng 1 phút, trên dữ liệu mẫu). Phần bạn đã xem không phải xem lại.</span></p>` : ""}
+    </div>`,
+    footer: `<a class="btn btn-ghost" href="#/gioi-thieu" data-n="notes">Xem release note</a><span class="spacer"></span>
+      ${news.count ? `<button class="btn" type="button" data-n="close">Để sau</button><button class="btn btn-primary" type="button" data-n="tour" autofocus>${icon("play", 14)} Xem phần mới</button>`
+        : `<button class="btn btn-primary" type="button" data-n="close" autofocus>Đã hiểu</button>`}`,
+  });
+  o.el.classList.add("welcome-modal");
+  delegate(o.el, "click", "[data-n]", (e, b) => {
+    o.close();
+    if (b.dataset.n === "tour") start(news.steps, { onlyAfter: since });
+  });
+}
 async function finish() {
+  const newsOnly = cur?.newsOnly;
   await stop(false, true);
-  doneDialog();
+  if (newsOnly) toast("Đã xem phần mới", "Bạn đang dùng dữ liệu thật. Hướng dẫn đầy đủ vẫn ở nút “Hướng dẫn” nếu cần.");
+  else doneDialog();
 }
 /** Thoát hướng dẫn. Thoát giữa chừng → báo rõ đã về dữ liệu thật và cách mở lại. */
 export async function stop(reopen = false, finished = false) {
@@ -222,7 +260,7 @@ export async function stop(reopen = false, finished = false) {
 
 /* ---------- Hộp chào: lần đầu đăng nhập, sau mỗi lần cập nhật app, hoặc khi Admin đưa mọi người về hướng dẫn ---------- */
 const firstName = () => String(state.user?.name || "").trim().split(/\s+/).pop() || "bạn";
-export function welcome({ returning = false, news = false } = {}) {
+export function welcome({ returning = false, news = false } = {}) { // news: hiện hộp "Mới · vX" (mặc định tắt)
   closePanel();
   const list = visibleCheckpoints();
   let chosen = false;
@@ -231,7 +269,7 @@ export function welcome({ returning = false, news = false } = {}) {
     title: returning ? `Chào ${firstName()}, mừng bạn quay lại!` : `Chào ${firstName()}, rất vui được gặp bạn!`,
     body: `<div class="welcome">
       <p class="welcome-lead">${icon("sparkles", 20)}<span>${returning
-        ? "App vừa được làm mới, hướng dẫn cũng vậy. Đi lại một vòng ngắn để không bỏ lỡ thay đổi nhé."
+        ? "Admin vừa mời mọi người xem lại hướng dẫn vì app có thay đổi lớn. Đi lại một vòng ngắn nhé — vài phút thôi."
         : "Đây là <strong>Markus Creator OS</strong> — nơi tìm creator, chạy campaign và xem báo cáo ở cùng một chỗ. Mình đi một vòng ngắn nhé?"}</span></p>
       ${news ? `<div class="welcome-news"><span class="badge badge-primary">Mới · v${esc(CURRENT.version)}</span><strong>${esc(CURRENT.title)}</strong><a class="link-btn" href="#/gioi-thieu" data-w="notes">Xem có gì mới</a></div>` : ""}
       <h3 class="welcome-h">Hướng dẫn hoạt động thế nào?</h3>
@@ -302,7 +340,7 @@ export function openPanel() {
   write({ seen: true, version: CURRENT.version });
   const done = new Set(read().done || []);
   const list = visibleCheckpoints();
-  const isNew = (c) => before && newer(c.since || "0", before) && !done.has(c.id);
+  const isNew = (c) => before && c.steps.some((s) => newer(s.since || c.since || "0", before));
   panel = document.createElement("section");
   panel.className = "tour-panel card";
   panel.setAttribute("role", "dialog");
@@ -333,18 +371,31 @@ export function initTour(btn) {
   if (!btn) return false;
   btn.innerHTML = `${icon("help", 18)}<span class="hide-m">Hướng dẫn</span>`;
   btn.addEventListener("click", () => (panel ? closePanel() : openPanel()));
+  if (!state.user) return false;
   const t = read();
-  // Máy chủ đổi "epoch" mỗi lần deploy (hoặc khi Admin bấm đặt lại) → mọi người về lại hướng dẫn từ đầu.
-  const epoch = state.config && state.config.tutorialEpoch;
-  if (epoch && t.epoch !== epoch && state.user) {
-    const returning = !!(t.seen || t.epoch);
-    const news = !!seenVersion() && seenVersion() !== CURRENT.version;
-    write({ epoch, done: [], seen: true, version: CURRENT.version });
-    setTimeout(() => welcome({ returning, news }), 700);
+  const reset = (state.config && state.config.tutorialReset) || "";
+  // 1) Chưa xem hướng dẫn bao giờ → hộp chào.
+  if (!t.seen) {
+    write({ seen: true, version: CURRENT.version, reset, done: [] });
+    markSeen();
+    setTimeout(() => welcome({}), 700);
     return true;
   }
-  // Lần đầu: mở "Bắt đầu nhanh". Sau một bản mới có checkpoint mới: mở lại một lần, checkpoint mới có nhãn "Mới".
-  const fresh = t.seen && t.version && visibleCheckpoints().some((c) => newer(c.since || "0", t.version));
-  if ((!t.seen || fresh) && state.user) setTimeout(openPanel, 900);
-  return false;
+  // 2) Admin bấm "Đưa mọi người về hướng dẫn ngay" (deploy KHÔNG bao giờ làm việc này).
+  if (t.reset === undefined) write({ reset }); // trình duyệt từ bản cũ: ghi nhận lặng lẽ, không bắt xem lại
+  else if (reset && t.reset !== reset) {
+    write({ reset, done: [], version: CURRENT.version });
+    markSeen();
+    setTimeout(() => welcome({ returning: true }), 700);
+    return true;
+  }
+  // 3) Bản mới: chỉ báo khi có tính năng liên quan tới người này; còn lại ghi nhận lặng lẽ.
+  const since = t.version || seenVersion() || CURRENT.version;
+  if (since === CURRENT.version) return false;
+  const news = newsFor(since);
+  write({ version: CURRENT.version });
+  markSeen();
+  if (!news.items.length && !news.count) return false;
+  setTimeout(() => newsDialog(news, since), 900);
+  return true;
 }

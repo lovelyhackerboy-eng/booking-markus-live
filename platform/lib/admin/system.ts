@@ -10,6 +10,7 @@ import path from "node:path";
 import { sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { getSyncSettings, lastRun, recentRuns } from "./sync-settings";
+import { youtubeIssues } from "../metrics/service";
 
 function readJson(file: string) {
   try { return JSON.parse(readFileSync(file, "utf8")); } catch { return null; }
@@ -133,7 +134,7 @@ export async function systemStatus() {
       (SELECT COUNT(*) FROM sessions) AS sessions,
       (SELECT COUNT(*) FROM users) AS users`),
   )[0] ?? {};
-  const [imp, met, plan] = await Promise.all([lastRun("import"), lastRun("metrics"), hostingPlan()]);
+  const [imp, met, plan, ytIssues] = await Promise.all([lastRun("import"), lastRun("metrics"), hostingPlan(), youtubeIssues()]);
   const runs = (await recentRuns(20)).map((r) => ({
     kind: r.kind, startedAt: r.startedAt, finishedAt: r.finishedAt, status: r.status,
     rowsRead: r.rowsRead, rowsImported: r.rowsImported, rowsSkipped: r.rowsSkipped, error: r.error,
@@ -151,6 +152,7 @@ export async function systemStatus() {
       metrics: met ? { startedAt: met.startedAt, status: met.status, summary: met.skipReasons } : null,
     },
     runs,
+    youtubeIssues: ytIssues, // admin only: creator name + public channel link + error code
     sync: await getSyncSettings(),
     checkedAt: new Date(),
   };

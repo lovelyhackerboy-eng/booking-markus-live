@@ -36,12 +36,18 @@ export const setYoutubeFetcherForTests = (f: Fetcher) => { fetcher = f; };
 
 export class FetchError extends Error {}
 
-/** Accepts channel URLs (/@handle, /channel/UC…, /c/…, /user/…). Video URLs are refused (not a channel). */
+// First path segments that are YouTube pages, not a legacy custom channel URL (youtube.com/<name>).
+const RESERVED = new Set(["watch", "results", "feed", "shorts", "playlist", "embed", "live", "channel", "c", "user", "hashtag", "premium",
+  "gaming", "music", "kids", "account", "about", "t", "redirect", "signin", "logout", "upload", "studio", "s", "post", "source", "attribution_link", "v", "e", "clip"]);
+
+/** Accepts channel URLs (/@handle, /channel/UC…, /c/…, /user/… and the legacy custom /<name>). Video URLs are refused. */
 export function channelPageUrl(raw: string): string | null {
   let u: URL;
   try { u = new URL(raw.trim()); } catch { return null; }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   if (!PAGE_HOSTS.test(u.hostname)) return null;
+  const legacy = u.pathname.match(/^\/([A-Za-z0-9._-]{2,100})(\/|$)/)?.[1];
+  if (legacy && !RESERVED.has(legacy.toLowerCase()) && !legacy.includes(".")) return `https://www.youtube.com/${legacy}`;
   if (!/^\/(@[^/]+|channel\/UC[\w-]{22}|c\/[^/]+|user\/[^/]+)/.test(u.pathname)) return null;
   const path = u.pathname.split("/").slice(0, u.pathname.startsWith("/@") ? 2 : 3).join("/");
   return `https://www.youtube.com${path}`;

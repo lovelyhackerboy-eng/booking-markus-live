@@ -1,14 +1,14 @@
 // API tests against a real MariaDB (TEST_DATABASE_URL, see docker-compose.dev.yml). Sessions are created directly
 // in the DB per role — there is no login shortcut in the app. Leak checks run on the RAW JSON text.
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DbDirectory, setDirectoryForTests, type Employee } from "@/lib/auth/directory";
 import { setGoogleKeysForTests } from "@/lib/auth/google";
 import { createSession } from "@/lib/auth/session";
 import { closeDb, db, pool } from "@/lib/db/client";
-import { auditLog, sessions, users } from "@/lib/db/schema";
+import { auditLog, channels, creatorMetrics, sessions, users } from "@/lib/db/schema";
 import { SEED_USERS, assertLocalDatabase, seedAll } from "@/lib/db/seed-data";
 import { BOOKINGS, CREATORS } from "../seed/prototype-data.mjs";
 import { fakeGoogle } from "./helpers/google-keys";
@@ -443,6 +443,13 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       expect(sys).not.toHaveProperty("disk");
       expect(JSON.stringify(sys)).not.toMatch(/hostTotal|hostFree|"cores"/);
       expect(sys.plan === null || typeof sys.plan.cpu.used === "number").toBe(true);
+      // Broken YouTube links are listed for the admin (name + public link + error code) so they can be fixed on the Sheet.
+      const [yt] = await db().select().from(channels).where(eq(channels.platform, "youtube")).limit(1);
+      await db().insert(creatorMetrics).values({ creatorId: yt.creatorId, platform: "youtube", sampleSize: 0, source: "auto", lastError: "page_404", computedAt: new Date() })
+        .onDuplicateKeyUpdate({ set: { lastError: "page_404" } });
+      const sys2 = (await call("admin", "@/app/api/admin/system/route", "GET", "/api/admin/system")).json;
+      expect(sys2.youtubeIssues).toContainEqual(expect.objectContaining({ creatorId: yt.creatorId, error: "page_404", url: yt.url }));
+      await db().update(creatorMetrics).set({ lastError: null }).where(and(eq(creatorMetrics.creatorId, yt.creatorId), eq(creatorMetrics.platform, "youtube")));
       expect(sys.database.bytes).toBeGreaterThan(0);
       expect(sys.database.feedbackNew).toBeGreaterThanOrEqual(1);
       expect(sys.text ?? JSON.stringify(sys)).not.toMatch(/mysql:\/\/|password|DATABASE_URL/i);
@@ -524,26 +531,20 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       }
     });
 
-    it("tutorial reset: epoch follows the build, admin can reset everyone now or turn off reset-on-deploy", async () => {
+    it("tutorial: deploys never reset it; only the admin button does (config.tutorialReset)", async () => {
       const TUT = "@/app/api/admin/tutorial/route";
-      const epoch = async () => JSON.parse((await getText("/api/snapshot", "viewer")).text).config.tutorialEpoch as string;
+      const cfg = async () => JSON.parse((await getText("/api/snapshot", "viewer")).text).config;
       expect((await call("manager", TUT, "GET", "/api/admin/tutorial")).status).toBe(403);
       expect((await call("planner", TUT, "POST", "/api/admin/tutorial", { resetNow: true })).status).toBe(403);
       expect((await call("admin", TUT, "POST", "/api/admin/tutorial", { resetNow: "yes" })).status).toBe(422);
-      const e0 = await epoch();
-      const { buildId } = await import("@/lib/admin/system");
-      expect(e0.startsWith(buildId() + "|")).toBe(true); // default: a new build = a new epoch
+      expect((await call("admin", TUT, "POST", "/api/admin/tutorial", { resetOnDeploy: true })).status).toBe(422); // option removed
+      const c0 = await cfg();
+      expect(c0).not.toHaveProperty("tutorialEpoch"); // nothing tied to the build id any more
+      expect(c0.tutorialReset ?? null).toBe((await call("admin", TUT, "GET", "/api/admin/tutorial")).json.settings.resetAt);
       const r = await call("admin", TUT, "POST", "/api/admin/tutorial", { resetNow: true });
       expect(r.status).toBe(200);
-      const e1 = await epoch();
-      expect(e1).not.toBe(e0);
-      expect(r.json.epoch).toBe(e1);
-      expect((await call("admin", TUT, "POST", "/api/admin/tutorial", { resetOnDeploy: false })).json.settings.resetOnDeploy).toBe(false);
-      const e2 = await epoch();
-      expect(e2.startsWith("-|")).toBe(true); // no longer tied to the build
-      const { tutorialEpoch, getTutorialSettings } = await import("@/lib/admin/tutorial");
-      expect(tutorialEpoch(await getTutorialSettings(), "another-build")).toBe(e2);
-      await call("admin", TUT, "POST", "/api/admin/tutorial", { resetOnDeploy: true });
+      expect((await cfg()).tutorialReset).toBe(r.json.settings.resetAt);
+      expect(r.json.settings.resetAt).not.toBe(c0.tutorialReset);
     });
   });
 

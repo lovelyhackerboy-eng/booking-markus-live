@@ -23,7 +23,7 @@ const SECTIONS = [["new", "Mới", "badge-primary"], ["improved", "Cải tiến"
 function release(r, open) {
   return `<details class="card release" ${open ? "open" : ""}>
     <summary><span class="release-v">v${esc(r.version)}</span><strong>${esc(r.title)}</strong><span class="faint">${fmtDate(r.date)}</span>${r === CURRENT ? `<span class="badge badge-primary">Đang dùng</span>` : ""}</summary>
-    <div class="release-body">${SECTIONS.filter(([k]) => (r[k] || []).length).map(([k, label, tone]) => `<div><span class="badge ${tone}">${label}</span><ul class="bullets">${r[k].map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>
+    <div class="release-body">${SECTIONS.filter(([k]) => (r[k] || []).length).map(([k, label, tone]) => `<div><span class="badge ${tone}">${label}</span><ul class="bullets">${r[k].map((x) => `<li>${esc(typeof x === "string" ? x : x.t)}${x.perm === "admin" ? ` <span class="badge">Admin</span>` : ""}</li>`).join("")}</ul></div>`).join("")}</div>
   </details>`;
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "markus-creator-os-platform",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "scripts": {
     "dev": "node scripts/copy-ui.mjs && next dev -p 3100",
     "build": "node scripts/copy-ui.mjs && next build && node scripts/build-scripts.mjs",

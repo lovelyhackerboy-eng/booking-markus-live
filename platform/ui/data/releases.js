@@ -1,20 +1,33 @@
 // data/releases.js — RELEASE NOTE theo phiên bản (mới nhất ở đầu). Hiện ở màn Giới thiệu (#/gioi-thieu) và thông báo
 // "Có gì mới" sau khi lên bản mới. QUY TẮC DỰ ÁN (CLAUDE.md): mỗi lần deploy bản mới lên server phải thêm 1 mục ở đây
 // và tăng "version" trong package.json cho khớp; tính năng mới / thay đổi phải kèm cập nhật hướng dẫn (core/tour.js).
-// Mỗi mục: { version, date (YYYY-MM-DD), title, new[], improved[], fixed[], limits[] } — viết cho người dùng, không kỹ thuật.
+// Mỗi mục: { version, date (YYYY-MM-DD), title, new[], improved[], fixed[], limits[], notify? } — viết cho người dùng.
+// Mỗi dòng là chuỗi (liên quan mọi người) hoặc { t, perm } (chỉ vai trò có quyền đó, vd. perm: "admin").
+// THÔNG BÁO BẢN MỚI: chỉ các dòng "new" / "improved" hợp vai trò của người dùng mới được báo (core/tour.js newsFor);
+// bản chỉ có "fixed" / "limits", hoặc notify: false, thì không báo ai. Cập nhật app KHÔNG bắt xem lại hướng dẫn.
 
 export const RELEASES = [
   {
+    version: "1.2.1", date: "2026-11-25", title: "Sửa lỗi đọc chỉ số YouTube, bớt làm phiền khi cập nhật",
+    new: [
+      { t: "Quản trị → Hệ thống: danh sách kênh YouTube không đọc được chỉ số, kèm lý do và link để sửa trên Google Sheet.", perm: "admin" },
+    ],
+    fixed: [
+      "Đọc được chỉ số các kênh YouTube dùng link kiểu cũ (youtube.com/tên-kênh) — trước đây bị bỏ qua.",
+      "Cập nhật app không còn bắt người đã xem hướng dẫn phải xem lại; bản mới chỉ được báo khi có tính năng liên quan tới bạn.",
+    ],
+  },
+  {
     version: "1.2.0", date: "2026-11-25", title: "Cấp quyền người dùng & số liệu hệ thống đúng gói hosting",
     new: [
-      "Quản trị → Người dùng: xem ai đã đăng nhập, lần đăng nhập gần nhất và đổi vai trò (Viewer, Planner, Quản lý, Admin).",
+      { t: "Quản trị → Người dùng: xem ai đã đăng nhập, lần đăng nhập gần nhất và đổi vai trò (Viewer, Planner, Quản lý, Admin).", perm: "admin" },
       "Người đăng nhập lần đầu luôn ở quyền Viewer (chỉ xem); Admin cấp thêm quyền khi cần. Vai trò không còn lấy từ cột Role trên Sheet — Sheet chỉ quyết định ai được đăng nhập.",
     ],
     improved: [
-      "Tình trạng hệ thống hiện CPU (giới hạn 1,5 nhân), RAM (1,5 GB), ổ đĩa (12 GB), số tiến trình và truy cập đồng thời của chính gói hosting, thay cho cấu hình của cả máy chủ vật lý dùng chung.",
+      { t: "Tình trạng hệ thống hiện CPU (giới hạn 1,5 nhân), RAM (1,5 GB), ổ đĩa (12 GB), số tiến trình và truy cập đồng thời của chính gói hosting, thay cho cấu hình của cả máy chủ vật lý dùng chung.", perm: "admin" },
     ],
     fixed: [
-      "Trang Hệ thống từng hiện 48 nhân CPU và RAM / ổ đĩa của cả máy chủ dùng chung — không phải tài nguyên của gói.",
+      { t: "Trang Hệ thống từng hiện 48 nhân CPU và RAM / ổ đĩa của cả máy chủ dùng chung — không phải tài nguyên của gói.", perm: "admin" },
     ],
   },
   {
@@ -30,9 +43,8 @@ export const RELEASES = [
     version: "1.1.0", date: "2026-11-26", title: "Hộp chào & chế độ hướng dẫn rõ ràng hơn",
     new: [
       "Hộp chào khi mở app lần đầu và sau mỗi lần cập nhật: giải thích hướng dẫn hoạt động thế nào, bấm gì để đi tiếp, thoát ra sao.",
-      "Sau mỗi lần cập nhật app, mọi người được mời xem lại hướng dẫn từ đầu để không bỏ lỡ thay đổi.",
       "Hộp kết thúc hướng dẫn: báo rõ đã quay về dữ liệu thật và gợi ý việc nên làm tiếp (tìm creator, tạo campaign, gửi góp ý).",
-      "Quản trị → Đồng bộ tự động: bật / tắt việc đặt lại hướng dẫn sau mỗi lần cập nhật, hoặc đưa mọi người về hướng dẫn ngay.",
+      { t: "Quản trị → Đồng bộ tự động: đưa mọi người về hướng dẫn ngay khi app có thay đổi lớn.", perm: "admin" },
     ],
     improved: [
       "Trong lúc hướng dẫn: thanh tím “Chế độ hướng dẫn” luôn hiện kèm số bước, viền màn hình đổi màu, mỗi bước có dòng “Việc của bạn”.",

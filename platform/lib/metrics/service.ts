@@ -80,6 +80,18 @@ export async function youtubeDue(limit: number, olderThanHours = 20): Promise<st
   return rows.map((r) => r.id);
 }
 
+/** YouTube channels whose last automatic read failed (admin list: fix the link on the Sheet). */
+export async function youtubeIssues(limit = 100) {
+  return db()
+    .select({ creatorId: creatorMetrics.creatorId, name: creators.name, url: channels.url, error: creatorMetrics.lastError, at: creatorMetrics.computedAt })
+    .from(creatorMetrics)
+    .innerJoin(creators, and(eq(creators.id, creatorMetrics.creatorId), isNull(creators.deletedAt)))
+    .innerJoin(channels, and(eq(channels.creatorId, creatorMetrics.creatorId), eq(channels.platform, "youtube")))
+    .where(and(eq(creatorMetrics.platform, "youtube"), sql`${creatorMetrics.lastError} IS NOT NULL`))
+    .orderBy(asc(creators.name))
+    .limit(limit);
+}
+
 /* ---------- Manual clips (TikTok / Facebook / Instagram, or any platform) ---------- */
 const count = z.number().int().min(0).max(1e13).nullable().optional();
 export const clipOpSchema = z.discriminatedUnion("op", [

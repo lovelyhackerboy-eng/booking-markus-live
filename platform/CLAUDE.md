@@ -12,7 +12,9 @@
 - Tăng `version` trong `package.json` (semver: tính năng mới → minor, chỉ sửa lỗi → patch).
 - Thêm một mục ở **đầu** `ui/data/releases.js` với cùng số phiên bản, ngày deploy và các phần `new / improved / fixed / limits`, viết cho người dùng (không thuật ngữ kỹ thuật).
 - Màn Giới thiệu (`#/gioi-thieu`) hiện release note; người dùng thấy thông báo "Có bản mới" một lần.
-- **Deploy = mọi người về chế độ hướng dẫn**: build mới đổi `tutorialEpoch` (snapshot `config`), mỗi trình duyệt thấy epoch mới thì xoá tiến độ hướng dẫn và mở hộp chào (`welcome()` trong `ui/core/tour.js`). Mặc định bật; Admin tắt hoặc đặt lại ngay ở Quản trị → Đồng bộ tự động. Không tắt cơ chế này trong code khi deploy.
+- **Deploy KHÔNG bắt xem lại hướng dẫn** (luật từ 25/11/2026, thay luật cũ "deploy = về chế độ hướng dẫn"): ai đã xem thì thôi; người chưa xem bao giờ luôn thấy hộp chào. Chỉ nút Admin "Đưa mọi người về hướng dẫn ngay" (snapshot `config.tutorialReset`) mới đặt lại cho mọi người.
+- **Chỉ báo bản mới khi có tính năng liên quan tới người dùng**: dòng release note là chuỗi (mọi người) hoặc `{ t, perm }` (chỉ vai trò đó). Chỉ dòng `new` / `improved` hợp vai trò được báo (hộp "Có gì mới cho bạn"); bản chỉ sửa lỗi thì ghi vào `fixed` — không báo ai. Tính năng chỉ Admin dùng → `perm: "admin"`.
+- Bước hướng dẫn thêm vào checkpoint cũ phải có `since` riêng trên bước đó: người dùng chỉ được mời xem **các bước mới**, không xem lại cả checkpoint.
 - Không deploy nếu hai việc trên chưa có trong cùng commit.
 
 ## 3. Tính năng mới hoặc thay đổi giao diện → sinh / sửa hướng dẫn
