@@ -457,6 +457,28 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       expect(snap.config).toMatchObject({ clientRefreshMinutes: cur.clientRefreshMinutes, version: expect.any(String) });
       expect((await call("planner", "@/app/api/admin/jobs/route", "POST", "/api/admin/jobs", { job: "metrics" })).status).toBe(403);
     });
+
+    it("tutorial reset: epoch follows the build, admin can reset everyone now or turn off reset-on-deploy", async () => {
+      const TUT = "@/app/api/admin/tutorial/route";
+      const epoch = async () => JSON.parse((await getText("/api/snapshot", "viewer")).text).config.tutorialEpoch as string;
+      expect((await call("manager", TUT, "GET", "/api/admin/tutorial")).status).toBe(403);
+      expect((await call("planner", TUT, "POST", "/api/admin/tutorial", { resetNow: true })).status).toBe(403);
+      expect((await call("admin", TUT, "POST", "/api/admin/tutorial", { resetNow: "yes" })).status).toBe(422);
+      const e0 = await epoch();
+      const { buildId } = await import("@/lib/admin/system");
+      expect(e0.startsWith(buildId() + "|")).toBe(true); // default: a new build = a new epoch
+      const r = await call("admin", TUT, "POST", "/api/admin/tutorial", { resetNow: true });
+      expect(r.status).toBe(200);
+      const e1 = await epoch();
+      expect(e1).not.toBe(e0);
+      expect(r.json.epoch).toBe(e1);
+      expect((await call("admin", TUT, "POST", "/api/admin/tutorial", { resetOnDeploy: false })).json.settings.resetOnDeploy).toBe(false);
+      const e2 = await epoch();
+      expect(e2.startsWith("-|")).toBe(true); // no longer tied to the build
+      const { tutorialEpoch, getTutorialSettings } = await import("@/lib/admin/tutorial");
+      expect(tutorialEpoch(await getTutorialSettings(), "another-build")).toBe(e2);
+      await call("admin", TUT, "POST", "/api/admin/tutorial", { resetOnDeploy: true });
+    });
   });
 
   describe("session, CSRF and origin", () => {

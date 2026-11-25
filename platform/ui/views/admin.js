@@ -86,6 +86,8 @@ function jobCard(title, j, every) {
 async function sync(el) {
   const r = await load("sync", "/admin/sync", el);
   if (!r) return;
+  const tu = await load("tut", "/admin/tutorial", el);
+  if (!tu) return;
   const s = r.settings, o = r.options;
   const sel = (id, list, v, fmt) => `<select class="select" id="${id}">${list.map((x) => `<option value="${x}" ${x === v ? "selected" : ""}>${fmt(x)}</option>`).join("")}</select>`;
   const mins = (x) => (x === 0 ? "Tắt" : x >= 60 ? `Mỗi ${x / 60} giờ` : `Mỗi ${x} phút`);
@@ -104,6 +106,11 @@ async function sync(el) {
       <section class="card card-pad stack"><h3>${icon("eye", 16)} Làm mới trên trình duyệt</h3>
         <p class="faint">Trang đang mở tự tải lại dữ liệu mới theo chu kỳ (bỏ qua khi người dùng đang gõ hoặc mở hộp thoại).</p>
         <div class="field"><label for="sy-client">Chu kỳ</label>${sel("sy-client", o.clientRefreshMinutes, s.clientRefreshMinutes, (x) => (x === 0 ? "Chỉ khi mở trang" : `Mỗi ${x} phút`))}</div></section>
+      <section class="card card-pad stack" data-tour="tutorial-reset"><h3>${icon("help", 16)} Hướng dẫn cho người dùng</h3>
+        <p class="faint">Khi hướng dẫn được đặt lại, lần mở app kế tiếp mỗi người thấy hộp chào và xem lại hướng dẫn từ đầu (trên dữ liệu mẫu).</p>
+        <label class="check"><input type="checkbox" id="tu-deploy" ${tu.settings.resetOnDeploy ? "checked" : ""} /> <span>Sau mỗi lần cập nhật app (deploy), đưa mọi người về hướng dẫn</span></label>
+        <div class="row-wrap"><button class="btn" type="button" data-act="tu-now">${icon("sync", 16)} Đưa mọi người về hướng dẫn ngay</button>
+          <span class="faint">${tu.settings.resetAt ? `Lần đặt lại gần nhất: ${relTime(tu.settings.resetAt)}` : ""}</span></div></section>
     </div>
     <div class="row-wrap"><span class="faint">Máy chủ đánh thức việc nhập Sheet mỗi 15 phút và việc chỉ số mỗi giờ; lịch ở đây quyết định lần nào thật sự chạy.</span><span class="spacer"></span>
       <button class="btn btn-ghost" type="button" data-act="sy-default">Về mặc định</button><button class="btn btn-primary" type="button" data-act="sy-save">Lưu lịch đồng bộ</button></div>`;
@@ -116,6 +123,19 @@ async function sync(el) {
     b.disabled = true;
     try { const res = await api("/admin/sync", { method: "POST", body: { settings: next } }); cache.sync = { ...r, settings: res.settings }; delete cache.sys; toast("Đã lưu lịch đồng bộ", "Áp dụng từ lần đánh thức tiếp theo."); }
     catch (err) { toast("Chưa lưu được", "Lỗi " + err.message, "danger"); }
+    b.disabled = false;
+  });
+  delegate(el, "change", "#tu-deploy", async (e, b) => {
+    b.disabled = true;
+    try { const res = await api("/admin/tutorial", { method: "POST", body: { resetOnDeploy: b.checked } }); cache.tut = res; toast(b.checked ? "Đã bật" : "Đã tắt", b.checked ? "Mỗi lần cập nhật app, mọi người sẽ xem lại hướng dẫn." : "Cập nhật app sẽ không đặt lại hướng dẫn nữa."); }
+    catch (err) { b.checked = !b.checked; toast("Chưa lưu được", "Lỗi " + err.message, "danger"); }
+    b.disabled = false;
+  });
+  delegate(el, "click", "[data-act=tu-now]", async (e, b) => {
+    if (!confirm("Đưa mọi người về hướng dẫn?\n\nLần mở app kế tiếp, mỗi người (cả bạn) sẽ thấy hộp chào và tiến độ hướng dẫn bắt đầu lại từ đầu. Dữ liệu thật không bị ảnh hưởng.")) return;
+    b.disabled = true;
+    try { cache.tut = await api("/admin/tutorial", { method: "POST", body: { resetNow: true } }); toast("Đã đặt lại hướng dẫn", "Mọi người sẽ thấy hộp chào ở lần mở app kế tiếp."); refresh(); }
+    catch (err) { toast("Chưa đặt lại được", "Lỗi " + err.message, "danger"); }
     b.disabled = false;
   });
   delegate(el, "click", "[data-run]", async (e, b) => {

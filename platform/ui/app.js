@@ -173,8 +173,8 @@ drawStyle();
   applySnapshot(await loadSnapshot());
   drawUser();
   start($("#main"), () => { drawNav(); refreshContext(); });
-  initTour($("#btn-help")); // lần đầu tự mở "Bắt đầu nhanh"; sau đó mở lại bằng nút Hướng dẫn
-  whatsNew();
+  // Lần đầu / sau mỗi lần deploy: hộp chào + hướng dẫn (đã kèm "có gì mới" nên không báo toast nữa).
+  if (!initTour($("#btn-help"))) whatsNew();
   autoRefresh();
 })();
 

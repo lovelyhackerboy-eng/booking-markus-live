@@ -125,6 +125,7 @@ export function demoApi(path, method) {
   if (path === "/admin/metrics") return Promise.resolve({ ok: true, settings: SETTINGS, defaults: SETTINGS, recomputed: 0 });
   const SYNC = { importMinutes: 15, metricsHours: 1, metricsBatch: 25, youtubeRefreshHours: 20, clientRefreshMinutes: 15 };
   if (path === "/admin/sync") return Promise.resolve({ ok: true, settings: SYNC, defaults: SYNC, options: { importMinutes: [0, 15, 30, 60, 120, 240, 720, 1440], metricsHours: [0, 1, 2, 3, 6, 12, 24], clientRefreshMinutes: [0, 5, 10, 15, 30, 60] } });
+  if (path === "/admin/tutorial") return Promise.resolve({ ok: true, settings: { resetOnDeploy: true, resetAt: null }, epoch: "demo" });
   if (path === "/admin/system") {
     const run = (kind, h, extra) => ({ kind, startedAt: day(h / 24), finishedAt: day(h / 24 - 0.0003), status: "ok", rowsRead: 0, rowsImported: 0, rowsSkipped: 0, error: null, ...extra });
     return Promise.resolve({ ok: true, app: { version: "demo", build: "demo", node: "v22", uptimeSec: 3 * 86400 + 5000 }, memory: { rss: 210 * 1048576, heapUsed: 90 * 1048576, heapTotal: 120 * 1048576, limitMb: 1536, hostTotal: 32 * 2 ** 30, hostFree: 11 * 2 ** 30 },

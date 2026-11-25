@@ -5,6 +5,19 @@
 
 export const RELEASES = [
   {
+    version: "1.1.0", date: "2026-11-26", title: "Hộp chào & chế độ hướng dẫn rõ ràng hơn",
+    new: [
+      "Hộp chào khi mở app lần đầu và sau mỗi lần cập nhật: giải thích hướng dẫn hoạt động thế nào, bấm gì để đi tiếp, thoát ra sao.",
+      "Sau mỗi lần cập nhật app, mọi người được mời xem lại hướng dẫn từ đầu để không bỏ lỡ thay đổi.",
+      "Hộp kết thúc hướng dẫn: báo rõ đã quay về dữ liệu thật và gợi ý việc nên làm tiếp (tìm creator, tạo campaign, gửi góp ý).",
+      "Quản trị → Đồng bộ tự động: bật / tắt việc đặt lại hướng dẫn sau mỗi lần cập nhật, hoặc đưa mọi người về hướng dẫn ngay.",
+    ],
+    improved: [
+      "Trong lúc hướng dẫn: thanh tím “Chế độ hướng dẫn” luôn hiện kèm số bước, viền màn hình đổi màu, mỗi bước có dòng “Việc của bạn”.",
+      "Thoát hướng dẫn giữa chừng sẽ báo rõ bạn đã về dữ liệu thật và cách mở lại.",
+    ],
+  },
+  {
     version: "1.0.0", date: "2026-11-26", title: "Bản MVP chính thức",
     new: [
       "Vòng đời campaign: Nháp → Đang chạy → Hoàn thành; đặt ngày chạy, ngân sách, mô tả / brief.",

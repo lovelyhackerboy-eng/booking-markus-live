@@ -4,13 +4,14 @@
 // - Bỏ qua bất cứ lúc nào (nút, phím Esc). Xem lại checkpoint đã xong. Tiến độ lưu ở trình duyệt (localStorage).
 // - Trong hướng dẫn mọi lời gọi API đi qua demoApi: KHÔNG có request nào ghi lên máy chủ; thoát là nạp lại dữ liệu thật.
 
-import { $, esc, icon, toast } from "./ui.js";
+import { $, esc, icon, toast, openOverlay, delegate } from "./ui.js";
 import { state, can, enterDemo, exitDemo, moveEntry, getList, emit } from "./store.js";
 import { CURRENT } from "../data/releases.js";
 import { makeDemo, demoApi } from "./demo.js";
 import { inDemo } from "../data/live.js";
 import { invalidate as invalidateReports } from "../views/reports.js";
 import { invalidateAll as invalidateAdmin } from "../views/admin.js";
+import { seenVersion } from "../views/about.js";
 
 const KEY = "markus_v2_tour";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
@@ -41,7 +42,7 @@ export const CHECKPOINTS = [
   ] },
   { id: "contact", since: "1.0.0", title: "Kéo thả tiến độ liên hệ", goal: "Đưa creator qua các bước tới “Đã chốt” bằng kanban.", steps: [
     { hash: "#/campaign/demo-run?tab=lien-he", sel: ".kanban", title: "Kanban các bước", body: "Mỗi cột là một bước (đổi được ở Cài đặt). Kéo thẻ creator sang cột khác để cập nhật — tự ghi vào CRM của creator." },
-    { sel: ".kb-col:first-child .kb-card", title: "Thử kéo thả", body: "Xem ví dụ: thẻ này sẽ tự chuyển sang bước kế tiếp. Trên điện thoại / bàn phím dùng ô chọn bước trên thẻ hoặc Alt + ← →.", run: demoMove },
+    { sel: ".kb-col:first-child .kb-card", title: "Thử kéo thả", body: "Xem ví dụ: thẻ này sẽ tự chuyển sang bước kế tiếp. Trên điện thoại / bàn phím dùng ô chọn bước trên thẻ hoặc Alt + ← →.", todo: "Nhìn thẻ được nhấc lên và tự sang cột bên cạnh, rồi bấm “Tiếp”.", run: demoMove },
     { sel: "[data-tour=contact-view]", title: "Kanban hoặc Bảng", body: "Chuyển sang dạng bảng để lọc, chọn nhiều dòng và đổi tiến độ hàng loạt." },
   ] },
   { id: "tracking", since: "1.0.0", title: "Theo dõi bài đăng", goal: "Ghi nhận bài đăng và số view của creator đã chốt.", steps: [
@@ -64,6 +65,7 @@ export const CHECKPOINTS = [
   { id: "admin", since: "1.0.0", perm: "admin", title: "Quản trị hệ thống", goal: "Theo dõi máy chủ, lịch đồng bộ, góp ý và campaign đã xoá.", steps: [
     { hash: "#/quan-tri?tab=he-thong", sel: ".report-kpis", title: "Tình trạng hệ thống", body: "Bộ nhớ app so với giới hạn gói hosting, ổ đĩa, dung lượng database và lần chạy gần nhất của các việc tự động." },
     { hash: "#/quan-tri?tab=dong-bo", sel: "[data-act=sy-save]", title: "Lịch đồng bộ tự động", body: "Đặt tần suất nhập Google Sheet, đọc chỉ số YouTube, số kênh mỗi lượt và chu kỳ làm mới trên trình duyệt. Có nút chạy ngay." },
+    { sel: "[data-tour=tutorial-reset]", title: "Đưa mọi người về hướng dẫn", body: "Mặc định, mỗi lần cập nhật app mọi người thấy hộp chào và xem lại hướng dẫn. Tắt được, hoặc bấm đặt lại ngay khi có thay đổi lớn." },
     { hash: "#/quan-tri?tab=gop-y", sel: ".admin-tabs", title: "Hộp góp ý", body: "Đổi trạng thái (Mới → Đang xử lý → Đã xong) và ghi phản hồi — người gửi thấy ngay trong hộp Góp ý của họ." },
     { hash: "#/quan-tri?tab=da-xoa", sel: ".admin-tabs", title: "Campaign đã xoá", body: "Khôi phục campaign bị xoá nhầm, về đúng trạng thái trước khi xoá." },
   ] },
@@ -96,8 +98,10 @@ function mount() {
   tip.setAttribute("aria-live", "polite");
   const banner = document.createElement("div");
   banner.className = "tour-banner";
-  banner.innerHTML = `${icon("help", 16)}<span>Đang xem <strong>hướng dẫn trên dữ liệu mẫu</strong> — thay đổi không được lưu.</span><button class="btn btn-sm" type="button" data-tour-exit>Thoát hướng dẫn</button>`;
+  banner.setAttribute("role", "status");
+  banner.innerHTML = `<span class="tour-banner-mode">${icon("help", 16)}<strong>Chế độ hướng dẫn</strong></span><span class="tour-banner-txt"><span class="hide-m">Dữ liệu mẫu — bạn bấm gì cũng không lưu · </span><span data-tour-count></span></span><button class="btn btn-sm" type="button" data-tour-exit>Thoát hướng dẫn</button>`;
   document.body.append(hole, tip, banner);
+  document.documentElement.classList.add("is-tour");
   banner.querySelector("[data-tour-exit]").addEventListener("click", () => stop());
   window.addEventListener("resize", reposition);
   window.addEventListener("scroll", reposition, true);
@@ -111,6 +115,7 @@ function unmount() {
   window.removeEventListener("scroll", reposition, true);
   document.removeEventListener("keydown", onKey);
   ui.hole.remove(); ui.tip.remove(); ui.banner.remove();
+  document.documentElement.classList.remove("is-tour");
   ui = null;
 }
 function onKey(e) {
@@ -157,10 +162,13 @@ async function show() {
   const n = cur.all.length;
   ui.tip.innerHTML = `<div class="tour-tip-top"><span class="badge badge-primary">${esc(step.cpTitle)}</span><span class="faint">${cur.i + 1}/${n}</span></div>
     <strong class="tour-tip-title">${esc(step.title)}</strong><p>${esc(step.body)}</p>
+    <p class="tour-do">${icon("chevR", 14)}<span><strong>Việc của bạn:</strong> ${esc(step.todo || (cur.i === n - 1 ? "Bấm “Xong” để hoàn thành." : "Đọc phần được tô sáng, rồi bấm “Tiếp” (hoặc phím →)."))}</span></p>
     <div class="tour-dots" aria-hidden="true">${cur.all.map((_, k) => `<i class="${k === cur.i ? "on" : k < cur.i ? "done" : ""}"></i>`).join("")}</div>
-    <div class="row-wrap tour-tip-act"><button class="btn btn-ghost btn-sm" type="button" data-t="skip">Bỏ qua</button><span class="spacer"></span>
+    <div class="row-wrap tour-tip-act"><button class="btn btn-ghost btn-sm" type="button" data-t="skip">Thoát</button><span class="spacer"></span>
       ${cur.i ? `<button class="btn btn-sm" type="button" data-t="back">${icon("chevL", 14)} Trước</button>` : ""}
       <button class="btn btn-primary btn-sm" type="button" data-t="next">${cur.i === n - 1 ? "Xong" : `Tiếp ${icon("chevR", 14)}`}</button></div>`;
+  const cnt = ui.banner.querySelector("[data-tour-count]");
+  if (cnt) cnt.textContent = `Bước ${cur.i + 1}/${n}`;
   ui.tip.querySelector("[data-t=skip]").onclick = () => stop();
   ui.tip.querySelector("[data-t=back]")?.addEventListener("click", () => go(-1));
   ui.tip.querySelector("[data-t=next]").onclick = () => go(1);
@@ -192,13 +200,13 @@ export async function start(ids) {
   show();
 }
 async function finish() {
-  const n = (read().done || []).length;
-  await stop(false);
-  toast("Hoàn thành hướng dẫn", `${n}/${CHECKPOINTS.length} checkpoint — mở lại bất cứ lúc nào ở nút “Hướng dẫn”.`);
-  openPanel();
+  await stop(false, true);
+  doneDialog();
 }
-export async function stop(reopen = false) {
+/** Thoát hướng dẫn. Thoát giữa chừng → báo rõ đã về dữ liệu thật và cách mở lại. */
+export async function stop(reopen = false, finished = false) {
   const back = cur?.back;
+  const midway = !!cur && !finished;
   cur = null; target = null;
   unmount();
   if (inDemo()) {
@@ -207,7 +215,78 @@ export async function stop(reopen = false) {
     emit("data"); emit("lists"); emit("shortlist");
     location.hash = back && !/demo-|DEMO-/.test(back) ? back : "#/kham-pha";
   }
+  if (midway) toast("Đã thoát hướng dẫn", "Bạn đang dùng dữ liệu thật. Mở lại bất cứ lúc nào ở nút “Hướng dẫn” trên cùng.");
   if (reopen) openPanel();
+}
+
+/* ---------- Hộp chào: lần đầu đăng nhập, sau mỗi lần cập nhật app, hoặc khi Admin đưa mọi người về hướng dẫn ---------- */
+const firstName = () => String(state.user?.name || "").trim().split(/\s+/).pop() || "bạn";
+export function welcome({ returning = false, news = false } = {}) {
+  closePanel();
+  const list = visibleCheckpoints();
+  let chosen = false;
+  const o = openOverlay({
+    kind: "modal",
+    title: returning ? `Chào ${firstName()}, mừng bạn quay lại!` : `Chào ${firstName()}, rất vui được gặp bạn!`,
+    body: `<div class="welcome">
+      <p class="welcome-lead">${icon("sparkles", 20)}<span>${returning
+        ? "App vừa được làm mới, hướng dẫn cũng vậy. Đi lại một vòng ngắn để không bỏ lỡ thay đổi nhé."
+        : "Đây là <strong>Markus Creator OS</strong> — nơi tìm creator, chạy campaign và xem báo cáo ở cùng một chỗ. Mình đi một vòng ngắn nhé?"}</span></p>
+      ${news ? `<div class="welcome-news"><span class="badge badge-primary">Mới · v${esc(CURRENT.version)}</span><strong>${esc(CURRENT.title)}</strong><a class="link-btn" href="#/gioi-thieu" data-w="notes">Xem có gì mới</a></div>` : ""}
+      <h3 class="welcome-h">Hướng dẫn hoạt động thế nào?</h3>
+      <ol class="welcome-steps">
+        <li><b>1</b><span><strong>Một vùng trên màn hình được tô sáng</strong>, kèm khung giải thích ngắn bên cạnh.</span></li>
+        <li><b>2</b><span><strong>Bấm “Tiếp”</strong> (hoặc phím →) để sang bước sau, “Trước” để quay lại.</span></li>
+        <li><b>3</b><span><strong>Muốn dừng?</strong> Bấm “Thoát hướng dẫn” trên thanh tím hoặc phím Esc — lúc nào cũng được.</span></li>
+      </ol>
+      <p class="welcome-safe">${icon("lock", 16)}<span>Trong lúc hướng dẫn, app dùng <strong>dữ liệu mẫu</strong>: bạn bấm gì cũng không ảnh hưởng dữ liệu thật. Thanh tím <em>“Chế độ hướng dẫn”</em> luôn cho biết bạn đang ở đâu.</span></p>
+      <p class="faint">${list.length} chặng ngắn · khoảng ${list.length} phút · bỏ dở thì lần sau xem tiếp được.</p>
+    </div>`,
+    footer: `<button class="btn btn-ghost" type="button" data-w="later">Để sau</button><span class="spacer"></span>
+      <button class="btn" type="button" data-w="pick">Chọn phần muốn xem</button>
+      <button class="btn btn-primary" type="button" data-w="start" autofocus>${icon("play", 14)} Bắt đầu hướng dẫn</button>`,
+    onClose: () => { if (!chosen) toast("Mở lại bất cứ lúc nào", "Bấm nút “Hướng dẫn” ở thanh trên cùng."); },
+  });
+  o.el.classList.add("welcome-modal");
+  delegate(o.el, "click", "[data-w]", (e, b) => {
+    const w = b.dataset.w;
+    chosen = w !== "later";
+    o.close();
+    if (w === "start") start(list.map((c) => c.id));
+    else if (w === "pick") openPanel();
+  });
+}
+
+/* ---------- Hộp kết thúc: khen, nói rõ đã về dữ liệu thật, gợi ý việc tiếp theo ---------- */
+function doneDialog() {
+  const done = new Set(read().done || []);
+  const list = visibleCheckpoints();
+  const left = list.filter((c) => !done.has(c.id));
+  const o = openOverlay({
+    kind: "modal",
+    title: left.length ? "Xong chặng này rồi!" : `Tuyệt vời, ${firstName()}! Bạn đã xem hết hướng dẫn`,
+    body: `<div class="welcome">
+      <p class="welcome-lead">${icon("checkCircle", 20)}<span>Bạn đã xong <strong>${list.length - left.length}/${list.length}</strong> chặng. App đã quay về <strong>dữ liệu thật</strong> — từ giờ mọi thay đổi đều được lưu.</span></p>
+      ${left.length ? `<p class="welcome-news"><span class="badge">Chặng tiếp theo</span><strong>${esc(left[0].title)}</strong><span class="faint">${esc(left[0].goal)}</span></p>` : ""}
+      <h3 class="welcome-h">Bắt đầu từ đâu?</h3>
+      <div class="welcome-next">
+        <a class="card welcome-go" href="#/kham-pha" data-d="go">${icon("compass", 18)}<span><strong>Tìm creator</strong><span class="dt-sub">Lọc kho creator hoặc hỏi bằng câu tự nhiên.</span></span></a>
+        <a class="card welcome-go" href="#/campaign" data-d="go">${icon("users", 18)}<span><strong>Tạo campaign</strong><span class="dt-sub">Bắt đầu ở trạng thái Nháp, sửa thoải mái.</span></span></a>
+        <button class="card welcome-go" type="button" data-d="feedback">${icon("message", 18)}<span><strong>Gửi góp ý</strong><span class="dt-sub">Chỗ nào khó dùng, nói với team một câu.</span></span></button>
+      </div>
+    </div>`,
+    footer: `<button class="btn btn-ghost" type="button" data-d="panel">Danh sách hướng dẫn</button><span class="spacer"></span>
+      ${left.length ? `<button class="btn" type="button" data-d="close">Để sau</button><button class="btn btn-primary" type="button" data-d="next" autofocus>${icon("play", 14)} Xem chặng tiếp theo</button>`
+        : `<button class="btn btn-primary" type="button" data-d="close" autofocus>Bắt đầu làm việc</button>`}`,
+  });
+  o.el.classList.add("welcome-modal");
+  delegate(o.el, "click", "[data-d]", (e, b) => {
+    const d = b.dataset.d;
+    o.close();
+    if (d === "next") start(left.map((c) => c.id));
+    else if (d === "panel") openPanel();
+    else if (d === "feedback") $("#btn-feedback")?.click();
+  });
 }
 
 /* ---------- Bảng checkpoint "Bắt đầu nhanh" ---------- */
@@ -247,13 +326,23 @@ export function openPanel() {
   panel.querySelector("[data-cp]")?.focus({ preventScroll: true });
 }
 
-/** Gắn nút "Hướng dẫn" vào topbar và tự mở bảng ở lần đầu. */
+/** Gắn nút "Hướng dẫn" vào topbar; lần đầu, sau mỗi lần deploy hoặc khi Admin đặt lại → hộp chào. Trả về true nếu mở hộp chào. */
 export function initTour(btn) {
-  if (!btn) return;
+  if (!btn) return false;
   btn.innerHTML = `${icon("help", 18)}<span class="hide-m">Hướng dẫn</span>`;
   btn.addEventListener("click", () => (panel ? closePanel() : openPanel()));
   const t = read();
+  // Máy chủ đổi "epoch" mỗi lần deploy (hoặc khi Admin bấm đặt lại) → mọi người về lại hướng dẫn từ đầu.
+  const epoch = state.config && state.config.tutorialEpoch;
+  if (epoch && t.epoch !== epoch && state.user) {
+    const returning = !!(t.seen || t.epoch);
+    const news = !!seenVersion() && seenVersion() !== CURRENT.version;
+    write({ epoch, done: [], seen: true, version: CURRENT.version });
+    setTimeout(() => welcome({ returning, news }), 700);
+    return true;
+  }
   // Lần đầu: mở "Bắt đầu nhanh". Sau một bản mới có checkpoint mới: mở lại một lần, checkpoint mới có nhãn "Mới".
   const fresh = t.seen && t.version && visibleCheckpoints().some((c) => newer(c.since || "0", t.version));
   if ((!t.seen || fresh) && state.user) setTimeout(openPanel, 900);
+  return false;
 }
