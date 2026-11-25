@@ -487,6 +487,6 @@ details.fold > .fold-body { padding: 0 0 var(--sp-4); display: flex; flex-direct
 .tour-cp-n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
 .tour-cps li.is-done .tour-cp-n { background: var(--success); color: #fff; }
 .tour-cp-txt { display: flex; flex-direction: column; min-width: 0; }
-.tour-panel-foot { gap: var(--sp-2); }
+.tour-panel-foot { gap: var(--sp-2); flex-wrap: wrap; }
 @media (max-width: 640px) { .tour-panel { right: 8px; left: 8px; bottom: 72px; width: auto; } .tour-banner { top: auto; bottom: 76px; } }
 @media (prefers-reduced-motion: reduce) { .tour-hole, .tour-tip, .tour-panel { transition: none; animation: none; } .tour-hole.tour-pulse::after, .kb-card.tour-flash { animation: none; } }

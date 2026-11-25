@@ -55,6 +55,7 @@ export function assertLocalDatabase(url: string | undefined, nodeEnv: string | u
 
 const TABLES_IN_ORDER = [
   s.sessions,
+  s.feedback,
   s.postSnapshots,
   s.posts,
   s.creatorClips,

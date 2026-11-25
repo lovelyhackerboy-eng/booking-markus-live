@@ -5,7 +5,7 @@
 // MVP live: 1 campaign = 1 bản ghi workflow "campaigns" của app cũ (xem PLAN mục 11) — app cũ vẫn mở được cùng bản ghi.
 
 import { $, esc, icon, delegate, openOverlay, toast, fmtNum, fmtDate } from "../core/ui.js";
-import { state, can, me, getCreator, visibleLists, isMine, getList, setActiveList, shortlistOf, canManageList, setMembers, setCampaignStatus, deleteCampaign } from "../core/store.js";
+import { state, can, me, getCreator, visibleLists, isMine, getList, setActiveList, shortlistOf, canManageList, setMembers, setCampaignStatus, deleteCampaign, canDeleteList } from "../core/store.js";
 import { FEATURES, CAMPAIGN_STATUS, finalStep } from "../data/live.js";
 import { openCampaignSettings } from "./campaign-settings.js";
 import { TEAM } from "../data/catalog.js";
@@ -71,17 +71,18 @@ function renderIndex(el) {
   delegate(el, "click", "[data-act=new]", () => lists.openNewList());
   delegate(el, "click", "[data-scope]", (e, b) => { scope = b.dataset.scope; refresh(); });
   delegate(el, "click", "[data-status]", (e, b) => { statusF = b.dataset.status; refresh(); });
+  delegate(el, "click", "[data-del]", (e, b) => { e.preventDefault(); askDelete(getList(b.dataset.del)); });
   $("#cp-owner", el)?.addEventListener("change", (e) => { ownerF = e.target.value; refresh(); });
 }
 function card(l) {
   const s = stats(l), k = pct(s.views, l.kpiViews);
-  return `<a class="card card-pad camp-card" href="#/campaign/${l.id}?tab=ung-vien" ${l.id === state.activeListId ? 'aria-current="true"' : ""}>
+  return `<div class="camp-card-wrap"><a class="card card-pad camp-card" href="#/campaign/${l.id}?tab=ung-vien" ${l.id === state.activeListId ? 'aria-current="true"' : ""}>
     <span class="camp-card-top"><strong>${esc(l.name)}</strong>${statusBadge(l)}</span>
     <span class="dt-sub">${l.brand ? "Brand " + esc(l.brand) + " · " : ""}${people(l)} ${roleTag(l)}</span>
     ${period(l) ? `<span class="dt-sub">${icon("calendar", 12)} ${period(l)}</span>` : ""}
     <span class="camp-steps"><span><strong class="num">${s.cand}</strong> ứng viên</span><span aria-hidden="true">→</span><span><strong class="num">${s.ent}</strong> đang liên hệ</span><span aria-hidden="true">→</span><span><strong class="num">${s.booked}</strong> chốt booking</span></span>
     ${l.kpiViews ? `<span class="bar ${barCls(k)}"><i style="width:${Math.min(100, k)}%"></i></span><span class="dt-sub">View dự kiến (đã duyệt) ${fmtNum(s.views)} / KPI ${fmtNum(l.kpiViews)} · ${k}%</span>` : `<span class="dt-sub">Chưa đặt KPI view</span>`}
-  </a>`;
+  </a>${canDeleteList(l) ? `<button class="btn btn-ghost btn-icon btn-sm camp-del" type="button" data-del="${l.id}" aria-label="Xoá campaign ${esc(l.name)}" title="Xoá campaign (dữ liệu được giữ lại)" data-tour="camp-delete">${icon("trash", 16)}</button>` : ""}</div>`;
 }
 
 /* ---------- Một campaign: đầu trang + 2 bước ---------- */
@@ -145,10 +146,10 @@ function lifecycle(l, s) {
   ];
   const at = steps.findIndex((x) => x.k === l.status);
   const act = !manage ? "" : l.status === "draft"
-    ? `<button class="btn btn-primary" type="button" data-life="start" data-tour="camp-start">${icon("play", 16)} Bắt đầu campaign</button><button class="btn btn-ghost" type="button" data-life="delete">${icon("trash", 16)} Xoá nháp</button>`
+    ? `<button class="btn btn-primary" type="button" data-life="start" data-tour="camp-start">${icon("play", 16)} Bắt đầu campaign</button>${canDeleteList(l) ? `<button class="btn btn-ghost" type="button" data-life="delete">${icon("trash", 16)} Xoá nháp</button>` : ""}`
     : l.status === "running"
-      ? `<button class="btn btn-primary" type="button" data-life="done" data-tour="camp-done">${icon("flag", 16)} Hoàn thành campaign</button><button class="btn btn-ghost" type="button" data-life="draft">Về nháp</button>`
-      : `<button class="btn" type="button" data-life="reopen">${icon("sync", 16)} Mở lại</button>`;
+      ? `<button class="btn btn-primary" type="button" data-life="done" data-tour="camp-done">${icon("flag", 16)} Hoàn thành campaign</button><button class="btn btn-ghost" type="button" data-life="draft">Về nháp</button>${canDeleteList(l) ? `<button class="btn btn-ghost" type="button" data-life="delete">${icon("trash", 16)} Xoá</button>` : ""}`
+      : `<button class="btn" type="button" data-life="reopen">${icon("sync", 16)} Mở lại</button>${canDeleteList(l) ? `<button class="btn btn-ghost" type="button" data-life="delete">${icon("trash", 16)} Xoá</button>` : ""}`;
   const track = l.trackFrom ? `Theo dõi bài đăng ${fmtDate(l.trackFrom)} → ${l.trackTo ? fmtDate(l.trackTo) : "…"}${l.autoTrack ? " · tự động" : ""}` : "Chưa đặt khung theo dõi bài đăng";
   return `<div class="card card-pad lifecycle" data-tour="camp-lifecycle">
     <ol class="life-steps" aria-label="Vòng đời campaign">${steps.map((x, i) => `<li class="${i < at ? "is-past" : i === at ? "is-now" : ""}" ${i === at ? 'aria-current="step"' : ""}><span class="life-dot">${i < at ? icon("check", 14) : i + 1}</span><span><strong>${x.t}</strong><span class="dt-sub">${x.d}</span></span></li>`).join("")}</ol>
@@ -184,11 +185,21 @@ async function lifeAction(l, what) {
   } else if (what === "draft") {
     if (await setCampaignStatus(l.id, "draft")) toast("Đã chuyển về nháp", l.name);
   } else if (what === "delete") {
-    const booked = state.bookings.some((b) => b.listId === l.id);
-    if (booked) return toast("Không xoá được", "Campaign đã có booking.", "danger");
-    if (!(await confirmBox("Xoá campaign nháp?", `<p>Xoá hẳn <strong>${esc(l.name)}</strong> cùng ${s.cand} ứng viên, ${s.ent} creator đang liên hệ và hội thoại Trợ lý AI của campaign. Không hoàn tác được.</p>`, "Xoá campaign", "danger"))) return;
-    if (await deleteCampaign(l.id)) { toast("Đã xoá campaign nháp", l.name); location.hash = "#/campaign"; }
+    if (await askDelete(l)) location.hash = "#/campaign";
   }
+}
+/** Xoá mềm có xác nhận. Nói rõ: ẩn khỏi danh sách + báo cáo, dữ liệu giữ lại, ai khôi phục được. */
+async function askDelete(l) {
+  if (!l || !canDeleteList(l)) return false;
+  const s = stats(l);
+  const ran = l.status !== "draft";
+  const ok = await confirmBox(`Xoá campaign “${l.name}”?`,
+    `<p>Campaign sẽ <strong>ẩn khỏi danh sách và không còn được tính trong báo cáo</strong>. Dữ liệu (${s.cand} ứng viên, ${s.ent} creator đang liên hệ, bài đăng, ghi chú) <strong>vẫn được giữ</strong> — Admin khôi phục được ở mục Quản trị → Campaign đã xoá.</p>
+     ${ran ? `<p class="faint">Campaign đã chạy nên chỉ Admin xoá được.</p>` : ""}`, "Xoá campaign", "danger");
+  if (!ok) return false;
+  if (!(await deleteCampaign(l.id))) return false;
+  toast("Đã xoá campaign", `${l.name} · Admin khôi phục được nếu cần`);
+  return true;
 }
 
 function openMembers(l) {

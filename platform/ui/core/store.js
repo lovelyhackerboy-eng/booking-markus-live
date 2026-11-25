@@ -61,6 +61,7 @@ export function applySnapshot(s) {
   state.user = s.user;
   state.role = s.user.role;
   state.team = s.team || [];
+  state.config = s.config || state.config || {};
   FEATURES.sheetWrite = !!(s.features && s.features.sheetWrite);
   FEATURES.addCreator = FEATURES.sheetWrite;
   TEAM.length = 0;
@@ -329,9 +330,12 @@ export const setCampaignStatus = (listId, status) => (canManageList(getList(list
 /** steps = [{ key?, label, final? }] theo thứ tự mới; moveTo = bước nhận creator của các bước bị xoá. */
 export const saveSteps = (listId, steps, moveTo) => (canManageList(getList(listId)) ? campaignOp(listId, { op: "steps", steps, ...(moveTo ? { moveTo } : {}) }) : Promise.resolve(null));
 /** Xoá campaign Nháp (không có booking). Trả về true nếu đã xoá. */
+/** Xoá được: người phụ trách / Quản lý khi còn Nháp; campaign đã chạy (Đang chạy, Hoàn thành) chỉ Admin. */
+export const canDeleteList = (l) => canManageList(l) && (l.status === "draft" || can("admin"));
+/** Xoá mềm: campaign chuyển sang "Đã xoá" — ẩn khỏi danh sách và báo cáo, dữ liệu vẫn giữ, Admin khôi phục được. */
 export async function deleteCampaign(listId) {
   const l = getList(listId);
-  if (!canManageList(l) || l.status !== "draft") return false;
+  if (!canDeleteList(l)) return false;
   const r = await send(`/campaigns/${encodeURIComponent(listId)}`, { op: "delete" });
   if (!r) return false;
   state.lists = state.lists.filter((x) => x.id !== listId);

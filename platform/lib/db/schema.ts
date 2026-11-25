@@ -21,7 +21,7 @@ export const PLATFORM_VALUES = ["tiktok", "facebook", "instagram", "youtube", "t
 // The 5 SOW price columns of CREATOR_DB: Photo Post, Video Post, Tham gia sự kiện, Tham gia video của nhãn hàng, Livestream.
 export const SOW_VALUES = ["photo", "video", "event", "brandvideo", "live"] as const;
 export const STAGE_VALUES = ["none", "zalo", "manager", "quoted", "closed"] as const; // default contact steps
-export const CAMPAIGN_STATUS_VALUES = ["draft", "running", "done"] as const;
+export const CAMPAIGN_STATUS_VALUES = ["draft", "running", "done", "deleted"] as const; // deleted = soft delete: data kept, hidden, not counted
 export const SOURCE_VALUES = ["manual", "auto"] as const;
 export const BOOKING_STATUS_VALUES = ["confirmed", "content", "posted", "paid", "cancelled"] as const;
 
@@ -163,6 +163,9 @@ export const campaigns = mysqlTable("campaigns", {
   trackFrom: datetime("track_from", { mode: "date" }),
   trackTo: datetime("track_to", { mode: "date" }),
   doneAt: ts("done_at"),
+  deletedAt: ts("deleted_at"),
+  deletedBy: varchar("deleted_by", { length: 190 }),
+  statusBeforeDelete: varchar("status_before_delete", { length: 20 }), // restored by admin
   createdAt: ts("created_at").notNull(),
   updatedAt: ts("updated_at").notNull(),
   archivedAt: ts("archived_at"),
@@ -339,6 +342,32 @@ export const settings = mysqlTable("settings", {
   updatedBy: varchar("updated_by", { length: 190 }),
   updatedAt: ts("updated_at").notNull(),
 });
+
+/* ---------- Feedback (nút "Góp ý") ---------- */
+export const FEEDBACK_STATUS_VALUES = ["new", "doing", "done", "wontfix"] as const;
+export const feedback = mysqlTable(
+  "feedback",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    createdAt: ts("created_at").notNull(),
+    email: varchar("email", { length: 190 }).notNull(),
+    name: varchar("name", { length: 190 }),
+    role: varchar("role", { length: 20 }),
+    screen: varchar("screen", { length: 120 }),
+    route: varchar("route", { length: 300 }),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    prio: varchar("prio", { length: 20 }).notNull(),
+    doing: text("doing").notNull(),
+    want: text("want").notNull(),
+    actual: text("actual"),
+    appVersion: varchar("app_version", { length: 40 }),
+    status: mysqlEnum("status", FEEDBACK_STATUS_VALUES).notNull().default("new"),
+    adminNote: text("admin_note"),
+    updatedAt: ts("updated_at").notNull(),
+    updatedBy: varchar("updated_by", { length: 190 }),
+  },
+  (t) => [index("feedback_status_idx").on(t.status)],
+);
 
 /* ---------- AI assistant ---------- */
 

@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { aiThreads, auditLog, bookings, campaignCandidates, campaignEntries, campaignMembers, campaigns, campaignSteps, creators, notes, posts, postSnapshots, SOW_VALUES, users } from "../db/schema";
+import { auditLog, campaignCandidates, campaignEntries, campaignMembers, campaigns, creators, notes, SOW_VALUES, users } from "../db/schema";
 import { firstStep, replaceSteps, stepsFor, type Step } from "./steps";
 import { can } from "../auth/roles";
 import type { CurrentUser } from "../auth/session";
@@ -43,6 +43,7 @@ export const opSchema = z.discriminatedUnion("op", [
   }),
   z.object({ op: z.literal("moveEntry"), creatorId: id40, stage: stepKey, position: z.number().int().min(0).max(10000).optional() }),
   z.object({ op: z.literal("delete") }),
+  z.object({ op: z.literal("restore") }),
   z.object({ op: z.literal("archive") }),
   z.object({ op: z.literal("members"), emails: z.array(z.string().email().max(190)).max(50) }),
   z.object({ op: z.literal("addCandidate"), creatorId: id40, sow: z.enum(SOW_VALUES).nullable().optional() }),
@@ -83,6 +84,7 @@ export async function createCampaign(actor: Actor, input: z.infer<typeof createS
 
 export async function applyCampaignOp(actor: Actor, id: string, op: CampaignOp): Promise<void> {
   if (!can(actor.role, "edit")) fail(403, "forbidden");
+  if (op.op === "restore") return restoreCampaign(actor, id);
   const c = await visibleCampaign(actor, id);
   const manage = c.ownerEmail === actor.email || can(actor.role, "allCampaigns");
   const now = new Date();
@@ -241,27 +243,25 @@ export async function applyCampaignOp(actor: Actor, id: string, op: CampaignOp):
       break;
     }
     case "delete": {
-      // Only a draft without bookings can be deleted; everything attached to it goes too.
+      // Soft delete: status "deleted", every row kept (candidates, contacts, posts, notes…), hidden from lists and
+      // reports. Draft: the owner / manager. Once it has run (running, done): admin only.
       if (!manage) fail(403, "forbidden");
-      if (c.status !== "draft") fail(409, "not_draft");
-      const [b] = await db().select({ id: bookings.id }).from(bookings).where(eq(bookings.campaignId, id)).limit(1);
-      if (b) fail(409, "has_bookings");
-      const postIds = (await db().select({ id: posts.id }).from(posts).where(eq(posts.campaignId, id))).map((x) => x.id);
-      await db().transaction(async (tx) => {
-        if (postIds.length) await tx.delete(postSnapshots).where(inArray(postSnapshots.postId, postIds));
-        await tx.delete(posts).where(eq(posts.campaignId, id));
-        await tx.delete(campaignCandidates).where(eq(campaignCandidates.campaignId, id));
-        await tx.delete(campaignEntries).where(eq(campaignEntries.campaignId, id));
-        await tx.delete(campaignMembers).where(eq(campaignMembers.campaignId, id));
-        await tx.delete(campaignSteps).where(eq(campaignSteps.campaignId, id));
-        await tx.delete(aiThreads).where(eq(aiThreads.campaignId, id));
-        await tx.delete(notes).where(eq(notes.campaignId, id));
-        await tx.delete(campaigns).where(eq(campaigns.id, id));
-      });
-      await audit(actor, "campaign.delete", "campaign:" + id, { name: c.name });
+      if (c.status !== "draft" && !can(actor.role, "admin")) fail(403, "admin_only");
+      await db().update(campaigns).set({ status: "deleted", statusBeforeDelete: c.status, deletedAt: now, deletedBy: actor.email, updatedAt: now }).where(eq(campaigns.id, id));
+      await audit(actor, "campaign.delete", "campaign:" + id, { name: c.name, status: c.status });
       return;
     }
   }
   await db().update(campaigns).set({ updatedAt: now }).where(eq(campaigns.id, id));
   await audit(actor, "campaign." + op.op, "campaign:" + id, op);
+}
+
+/** Admin: bring a soft-deleted campaign back with the status it had. */
+async function restoreCampaign(actor: Actor, id: string) {
+  if (!can(actor.role, "admin")) fail(403, "forbidden");
+  const [c] = await db().select().from(campaigns).where(and(eq(campaigns.id, id), eq(campaigns.status, "deleted"))).limit(1);
+  if (!c) fail(404, "not_found");
+  const back = (["draft", "running", "done"] as const).find((x) => x === c!.statusBeforeDelete) ?? "draft";
+  await db().update(campaigns).set({ status: back, statusBeforeDelete: null, deletedAt: null, deletedBy: null, updatedAt: new Date() }).where(eq(campaigns.id, id));
+  await audit(actor, "campaign.restore", "campaign:" + id, { name: c!.name, status: back });
 }

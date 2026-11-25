@@ -5,50 +5,67 @@
 // - Trong hướng dẫn mọi lời gọi API đi qua demoApi: KHÔNG có request nào ghi lên máy chủ; thoát là nạp lại dữ liệu thật.
 
 import { $, esc, icon, toast } from "./ui.js";
-import { state, enterDemo, exitDemo, moveEntry, getList, emit } from "./store.js";
+import { state, can, enterDemo, exitDemo, moveEntry, getList, emit } from "./store.js";
+import { CURRENT } from "../data/releases.js";
 import { makeDemo, demoApi } from "./demo.js";
 import { inDemo } from "../data/live.js";
 import { invalidate as invalidateReports } from "../views/reports.js";
+import { invalidateAll as invalidateAdmin } from "../views/admin.js";
 
 const KEY = "markus_v2_tour";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
 const write = (v) => { try { localStorage.setItem(KEY, JSON.stringify({ ...read(), ...v })); } catch (e) {} };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* ---------- Kịch bản: mỗi checkpoint là một chuỗi bước { hash?, sel, title, body, place?, run? } ---------- */
+/* ---------- Kịch bản: mỗi checkpoint là một chuỗi bước { hash?, sel, title, body, place?, run? } ----------
+   QUY TẮC DỰ ÁN (CLAUDE.md): tính năng mới / đổi giao diện → thêm hoặc sửa checkpoint ở đây trong CÙNG lần release,
+   ghi `since` = phiên bản (data/releases.js). Checkpoint mới hơn bản người dùng đã xem hiện nhãn "Mới".
+   `perm` = chỉ hiện với vai trò có quyền đó. Selector ưu tiên [data-tour=…] để đổi giao diện không làm gãy hướng dẫn. */
 export const CHECKPOINTS = [
-  { id: "discover", title: "Tìm creator phù hợp", goal: "Lọc kho creator, đọc view trung bình / ER, lưu vào campaign.", steps: [
+  { id: "discover", since: "1.0.0", title: "Tìm creator phù hợp", goal: "Lọc kho creator, đọc view trung bình / ER, lưu vào campaign.", steps: [
     { hash: "#/kham-pha", sel: "#btn-ask", title: "Hỏi bằng câu tự nhiên", body: "Gõ như nói chuyện: “creator mẹ bỉm TP.HCM dưới 500K follower, view tốt”. AI đọc câu và đặt bộ lọc giúp bạn (Ctrl K)." },
     { sel: ".disc-side", title: "Bộ lọc chi tiết", body: "Lọc theo nền tảng, tier, ngành, khu vực, giá… Mỗi lựa chọn lọc ngay danh sách bên phải.", place: "right" },
     { sel: ".res-stats, .dt.sheet tbody tr", title: "Chỉ số tự cập nhật", body: "View trung bình và ER tính từ các clip gần nhất (YouTube tự đọc mỗi ngày; TikTok, Facebook, Instagram nhập tay). Admin chỉnh công thức được." },
     { sel: "[data-save]", title: "Lưu vào campaign", body: "Bấm để đưa creator vào bước Ứng viên của một campaign (hoặc tạo campaign mới ngay tại đây)." },
   ] },
-  { id: "campaign", title: "Tạo & quản lý campaign", goal: "Nháp → Đang chạy → Hoàn thành, cài đặt ngày, ngân sách, các bước.", steps: [
+  { id: "campaign", since: "1.0.0", title: "Tạo & quản lý campaign", goal: "Nháp → Đang chạy → Hoàn thành, cài đặt ngày, ngân sách, các bước.", steps: [
     { hash: "#/campaign", sel: "[data-act=new]", title: "Tạo campaign", body: "Campaign mới luôn bắt đầu ở trạng thái Nháp. Campaign nháp xoá được." },
     { sel: "[data-tour=camp-status-filter]", title: "Lọc theo trạng thái", body: "Xem nhanh campaign Nháp, Đang chạy hay đã Hoàn thành." },
+    { sel: "[data-tour=camp-delete]", title: "Xoá campaign", body: "Xoá chỉ ẩn campaign khỏi danh sách và báo cáo — dữ liệu vẫn được giữ, Admin khôi phục được. Campaign đã chạy chỉ Admin xoá." },
     { hash: "#/campaign/demo-run?tab=ung-vien", sel: "[data-tour=camp-lifecycle]", title: "Vòng đời campaign", body: "Từ lên kế hoạch tới đang chạy và hoàn thành. Nút “Hoàn thành campaign” chốt số liệu để báo cáo; mở lại được nếu cần." },
     { sel: "[data-tour=camp-settings]", title: "Cài đặt campaign", body: "Mô tả / brief, KPI view, ngân sách, ngày chạy, khoảng ngày theo dõi bài đăng và thêm / sửa / xoá / sắp xếp các bước liên hệ." },
   ] },
-  { id: "candidates", title: "Chọn & duyệt ứng viên", goal: "So sánh, ước tính KPI, duyệt creator sang bước Liên hệ.", steps: [
+  { id: "candidates", since: "1.0.0", title: "Chọn & duyệt ứng viên", goal: "So sánh, ước tính KPI, duyệt creator sang bước Liên hệ.", steps: [
     { hash: "#/campaign/demo-run?tab=ung-vien", sel: ".project-bar", title: "Ước tính KPI", body: "View dự kiến của creator đã duyệt so với KPI của campaign — biết ngay còn thiếu bao nhiêu." },
     { sel: "[data-commit], [data-act=commit-all]", title: "Duyệt ứng viên", body: "Bấm Duyệt để chuyển creator sang bước Liên hệ. Có thể duyệt từng người hoặc cả danh sách." },
   ] },
-  { id: "contact", title: "Kéo thả tiến độ liên hệ", goal: "Đưa creator qua các bước tới “Đã chốt” bằng kanban.", steps: [
+  { id: "contact", since: "1.0.0", title: "Kéo thả tiến độ liên hệ", goal: "Đưa creator qua các bước tới “Đã chốt” bằng kanban.", steps: [
     { hash: "#/campaign/demo-run?tab=lien-he", sel: ".kanban", title: "Kanban các bước", body: "Mỗi cột là một bước (đổi được ở Cài đặt). Kéo thẻ creator sang cột khác để cập nhật — tự ghi vào CRM của creator." },
     { sel: ".kb-col:first-child .kb-card", title: "Thử kéo thả", body: "Xem ví dụ: thẻ này sẽ tự chuyển sang bước kế tiếp. Trên điện thoại / bàn phím dùng ô chọn bước trên thẻ hoặc Alt + ← →.", run: demoMove },
     { sel: "[data-tour=contact-view]", title: "Kanban hoặc Bảng", body: "Chuyển sang dạng bảng để lọc, chọn nhiều dòng và đổi tiến độ hàng loạt." },
   ] },
-  { id: "tracking", title: "Theo dõi bài đăng", goal: "Ghi nhận bài đăng và số view của creator đã chốt.", steps: [
+  { id: "tracking", since: "1.0.0", title: "Theo dõi bài đăng", goal: "Ghi nhận bài đăng và số view của creator đã chốt.", steps: [
     { hash: "#/campaign/demo-run?tab=theo-doi", sel: "[data-tour=track-head]", title: "View đã giao so với KPI", body: "Tổng view, số bài, tương tác của các bài đã đăng. YouTube tự tìm video trong khoảng ngày theo dõi (bật ở Cài đặt)." },
     { sel: "[data-tour=post-add]", title: "Thêm bài đăng", body: "Dán link TikTok / Facebook / Instagram / YouTube và nhập số liệu; sửa số ngay trên bảng mỗi khi cập nhật." },
   ] },
-  { id: "report", title: "Xem báo cáo", goal: "Báo cáo campaign cho khách và tổng quan cho team.", steps: [
+  { id: "report", since: "1.0.0", title: "Xem báo cáo", goal: "Báo cáo campaign cho khách và tổng quan cho team.", steps: [
     { hash: "#/campaign/demo-run?tab=bao-cao", sel: ".report-kpis", title: "Báo cáo campaign", body: "View đã giao, % KPI, ER, chi phí và CPV (chỉ vai trò xem được giá), hiệu quả từng creator." },
     { sel: "[data-tour=report-csv]", title: "Xuất CSV / In PDF", body: "Gửi khách hoặc mở bằng Excel / Google Sheet." },
     { hash: "#/bao-cao", sel: ".report-kpis", title: "Báo cáo tổng quan", body: "Mọi campaign bạn thấy. Quản lý và Admin có thêm bảng theo người phụ trách." },
   ] },
-  { id: "metrics", title: "Chỉ số của creator", goal: "Xem / nhập clip gần đây để tính view trung bình và ER.", steps: [
+  { id: "metrics", since: "1.0.0", title: "Chỉ số của creator", goal: "Xem / nhập clip gần đây để tính view trung bình và ER.", steps: [
     { hash: "#/creator/DEMO-005?tab=kenh", sel: "[data-tour=profile-clips]", title: "Clip gần đây & chỉ số", body: "Mở để xem các clip dùng để tính, dán thêm clip mới (TikTok / Facebook / Instagram) hoặc đọc lại YouTube ngay." },
+  ] },
+  { id: "about", since: "1.0.0", title: "Góp ý, giới thiệu & bản mới", goal: "Gửi góp ý, xem release note và mở lại hướng dẫn.", steps: [
+    { hash: "#/gioi-thieu", sel: "#release-notes", title: "Release note", body: "Mỗi phiên bản ghi rõ có gì mới, cải tiến và giới hạn hiện tại. Khi lên bản mới, app báo một lần và đánh dấu ở mục Giới thiệu." },
+    { sel: "#btn-feedback", title: "Gửi góp ý", body: "Một góp ý = một vấn đề. Màn hình, vai trò, phiên bản tự ghi kèm; bạn xem được trạng thái xử lý và phản hồi của Admin." },
+    { sel: "#btn-help", title: "Xem lại hướng dẫn", body: "Mở lại danh sách checkpoint bất cứ lúc nào. Hướng dẫn cho tính năng mới có nhãn “Mới”." },
+  ] },
+  { id: "admin", since: "1.0.0", perm: "admin", title: "Quản trị hệ thống", goal: "Theo dõi máy chủ, lịch đồng bộ, góp ý và campaign đã xoá.", steps: [
+    { hash: "#/quan-tri?tab=he-thong", sel: ".report-kpis", title: "Tình trạng hệ thống", body: "Bộ nhớ app so với giới hạn gói hosting, ổ đĩa, dung lượng database và lần chạy gần nhất của các việc tự động." },
+    { hash: "#/quan-tri?tab=dong-bo", sel: "[data-act=sy-save]", title: "Lịch đồng bộ tự động", body: "Đặt tần suất nhập Google Sheet, đọc chỉ số YouTube, số kênh mỗi lượt và chu kỳ làm mới trên trình duyệt. Có nút chạy ngay." },
+    { hash: "#/quan-tri?tab=gop-y", sel: ".admin-tabs", title: "Hộp góp ý", body: "Đổi trạng thái (Mới → Đang xử lý → Đã xong) và ghi phản hồi — người gửi thấy ngay trong hộp Góp ý của họ." },
+    { hash: "#/quan-tri?tab=da-xoa", sel: ".admin-tabs", title: "Campaign đã xoá", body: "Khôi phục campaign bị xoá nhầm, về đúng trạng thái trước khi xoá." },
   ] },
 ];
 
@@ -170,7 +187,7 @@ export async function start(ids) {
   if (!cps.length) return;
   closePanel();
   const back = location.hash;
-  if (!inDemo()) { invalidateReports(); enterDemo(makeDemo(), demoApi); }
+  if (!inDemo()) { invalidateReports(); invalidateAdmin(); enterDemo(makeDemo(), demoApi); }
   cur = { all: cps.flatMap((c) => c.steps.map((s, k) => ({ ...s, cpId: c.id, cpTitle: c.title, last: k === c.steps.length - 1 }))), i: 0, back };
   show();
 }
@@ -185,7 +202,7 @@ export async function stop(reopen = false) {
   cur = null; target = null;
   unmount();
   if (inDemo()) {
-    invalidateReports();
+    invalidateReports(); invalidateAdmin();
     await exitDemo();
     emit("data"); emit("lists"); emit("shortlist");
     location.hash = back && !/demo-|DEMO-/.test(back) ? back : "#/kham-pha";
@@ -196,11 +213,15 @@ export async function stop(reopen = false) {
 /* ---------- Bảng checkpoint "Bắt đầu nhanh" ---------- */
 let panel = null;
 function closePanel() { panel?.remove(); panel = null; }
+const newer = (a, b) => { const x = a.split(".").map(Number), y = (b || "0").split(".").map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+export const visibleCheckpoints = () => CHECKPOINTS.filter((c) => !c.perm || can(c.perm));
 export function openPanel() {
   closePanel();
-  write({ seen: true });
+  const before = read().version; // phiên bản hướng dẫn người dùng đã xem lần trước
+  write({ seen: true, version: CURRENT.version });
   const done = new Set(read().done || []);
-  const list = CHECKPOINTS;
+  const list = visibleCheckpoints();
+  const isNew = (c) => before && newer(c.since || "0", before) && !done.has(c.id);
   panel = document.createElement("section");
   panel.className = "tour-panel card";
   panel.setAttribute("role", "dialog");
@@ -210,13 +231,13 @@ export function openPanel() {
       <div><strong>Bắt đầu nhanh</strong><span class="dt-sub">${list.length} checkpoint · mỗi cái 1 phút · chạy trên dữ liệu mẫu, không ảnh hưởng dữ liệu thật</span></div>
       <button class="btn btn-ghost btn-icon btn-sm" type="button" data-p="close" aria-label="Đóng">${icon("xmark", 16)}</button></header>
     <ol class="tour-cps">${list.map((c, i) => `<li class="${done.has(c.id) ? "is-done" : ""}"><span class="tour-cp-n">${done.has(c.id) ? icon("check", 14) : i + 1}</span>
-      <span class="tour-cp-txt"><strong>${esc(c.title)}</strong><span class="dt-sub">${esc(c.goal)}</span></span>
+      <span class="tour-cp-txt"><strong>${esc(c.title)}${isNew(c) ? ` <span class="badge badge-primary">Mới</span>` : ""}</strong><span class="dt-sub">${esc(c.goal)}</span></span>
       <button class="btn btn-sm ${done.has(c.id) ? "" : "btn-primary"}" type="button" data-cp="${c.id}">${done.has(c.id) ? "Xem lại" : "Bắt đầu"}</button></li>`).join("")}</ol>
     <footer class="row-wrap tour-panel-foot"><button class="btn btn-primary" type="button" data-p="all">${icon("play", 14)} Xem lần lượt tất cả</button><span class="spacer"></span>
-      <button class="btn btn-ghost btn-sm" type="button" data-p="later">Để sau</button>${done.size ? `<button class="btn btn-ghost btn-sm" type="button" data-p="reset">Đặt lại tiến độ</button>` : ""}</footer>`;
+      <a class="btn btn-ghost btn-sm" href="#/gioi-thieu" data-p="about">Giới thiệu & release note</a>${can("admin") ? `<a class="btn btn-ghost btn-sm" href="#/quan-tri" data-p="admin-link">Quản trị</a>` : ""}<button class="btn btn-ghost btn-sm" type="button" data-p="later">Để sau</button>${done.size ? `<button class="btn btn-ghost btn-sm" type="button" data-p="reset">Đặt lại tiến độ</button>` : ""}</footer>`;
   document.body.appendChild(panel);
   panel.addEventListener("click", (e) => {
-    const b = e.target.closest("button");
+    const b = e.target.closest("button, a");
     if (!b) return;
     if (b.dataset.cp) start([b.dataset.cp]);
     else if (b.dataset.p === "all") { const todo = list.filter((c) => !done.has(c.id)); start((todo.length ? todo : list).map((c) => c.id)); }
@@ -231,5 +252,8 @@ export function initTour(btn) {
   if (!btn) return;
   btn.innerHTML = `${icon("help", 18)}<span class="hide-m">Hướng dẫn</span>`;
   btn.addEventListener("click", () => (panel ? closePanel() : openPanel()));
-  if (!read().seen && state.user) setTimeout(openPanel, 900);
+  const t = read();
+  // Lần đầu: mở "Bắt đầu nhanh". Sau một bản mới có checkpoint mới: mở lại một lần, checkpoint mới có nhãn "Mới".
+  const fresh = t.seen && t.version && visibleCheckpoints().some((c) => newer(c.since || "0", t.version));
+  if ((!t.seen || fresh) && state.user) setTimeout(openPanel, 900);
 }

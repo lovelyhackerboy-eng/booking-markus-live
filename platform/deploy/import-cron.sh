@@ -12,6 +12,8 @@ LOG=$S/import.log
 cd $H/markus-v2-app || exit 1
 exec 9>$S/import.lock
 /usr/bin/flock -n 9 || exit 0
+# Admin schedule (Quản trị → Đồng bộ tự động): skip quietly when the next import is not due yet or sync is off.
+$H/nodevenv/markus-v2-app/22/bin/node dist/sync-gate.cjs import || exit 0
 {
   printf '%s ' "$(date '+%Y-%m-%d %H:%M:%S')"
   /usr/local/bin/php bridge/sheet-export.php | $H/nodevenv/markus-v2-app/22/bin/node dist/import-sheet.cjs

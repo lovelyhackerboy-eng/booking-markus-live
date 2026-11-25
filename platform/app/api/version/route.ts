@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { json } from "@/lib/http";
+import { APP_VERSION } from "@/lib/admin/system";
 
 export const dynamic = "force-dynamic";
 let build: string | null = null;
@@ -14,5 +15,5 @@ export async function GET() {
       build = "dev";
     }
   }
-  return json({ ok: true, build });
+  return json({ ok: true, build, version: APP_VERSION });
 }

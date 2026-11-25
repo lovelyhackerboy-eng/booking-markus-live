@@ -497,3 +497,38 @@ a.chan-item:hover .num { text-decoration: underline; }
   body, .page { background: #fff !important; }
   .card { box-shadow: none !important; break-inside: avoid; }
 }
+
+/* ---------- Campaign: nút xoá trên thẻ ---------- */
+.camp-card-wrap { position: relative; display: flex; }
+.camp-card-wrap > .camp-card { flex: 1; min-width: 0; padding-right: 52px; }
+.camp-del { position: absolute; right: 10px; bottom: 10px; opacity: .55; }
+.camp-card-wrap:hover .camp-del, .camp-del:focus-visible { opacity: 1; }
+.camp-del:hover { color: var(--danger-ink); background: var(--danger-soft); }
+
+/* ---------- Giới thiệu & release note ---------- */
+.about-flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-3); }
+.about-step { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-3); border-radius: var(--r-md, 12px); background: var(--primary-soft); }
+.about-ico { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--card-bg); color: var(--primary); }
+.about-dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px var(--sp-3); margin: 0; }
+.about-dl dt { color: var(--text-soft); } .about-dl dd { margin: 0; overflow-wrap: anywhere; }
+.about-rn { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-4); }
+.release summary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); cursor: pointer; list-style: none; }
+.release summary::-webkit-details-marker { display: none; }
+.release summary::after { content: "▾"; margin-left: auto; color: var(--text-faint); transition: transform var(--dur); }
+.release[open] summary::after { transform: rotate(180deg); }
+.release-v { font-family: var(--font-display); font-weight: var(--display-weight, 700); color: var(--primary); }
+.release-body { display: grid; gap: var(--sp-3); padding: 0 var(--sp-4) var(--sp-4); }
+.release-body ul { margin: 6px 0 0; }
+
+/* ---------- Quản trị ---------- */
+.admin-tabs { overflow-x: auto; max-width: 100%; }
+.admin-tabs button { white-space: nowrap; }
+.fb-list { display: grid; gap: var(--sp-3); }
+.fb-item { display: grid; gap: var(--sp-2); }
+.fb-dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px var(--sp-3); margin: 0; font-size: var(--fs-sm); }
+.fb-dl dt { color: var(--text-soft); } .fb-dl dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.fb-admin { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto auto; gap: var(--sp-2); align-items: center; }
+.fb-mine { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.fb-mine li { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) 0; border-bottom: 1px solid var(--card-border); }
+.fb-reply { font-size: var(--fs-sm); color: var(--text); background: var(--primary-soft); border-radius: 8px; padding: 6px 8px; margin-top: 4px; }
+@media (max-width: 640px) { .fb-dl { grid-template-columns: 1fr; } .fb-admin { grid-template-columns: 1fr auto auto; } .fb-admin select { grid-column: 1 / -1; } }

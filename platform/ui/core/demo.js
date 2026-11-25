@@ -123,6 +123,21 @@ export function demoApi(path, method) {
     return Promise.resolve({ ok: true, clips, settings: SETTINGS, creator: c });
   }
   if (path === "/admin/metrics") return Promise.resolve({ ok: true, settings: SETTINGS, defaults: SETTINGS, recomputed: 0 });
+  const SYNC = { importMinutes: 15, metricsHours: 1, metricsBatch: 25, youtubeRefreshHours: 20, clientRefreshMinutes: 15 };
+  if (path === "/admin/sync") return Promise.resolve({ ok: true, settings: SYNC, defaults: SYNC, options: { importMinutes: [0, 15, 30, 60, 120, 240, 720, 1440], metricsHours: [0, 1, 2, 3, 6, 12, 24], clientRefreshMinutes: [0, 5, 10, 15, 30, 60] } });
+  if (path === "/admin/system") {
+    const run = (kind, h, extra) => ({ kind, startedAt: day(h / 24), finishedAt: day(h / 24 - 0.0003), status: "ok", rowsRead: 0, rowsImported: 0, rowsSkipped: 0, error: null, ...extra });
+    return Promise.resolve({ ok: true, app: { version: "demo", build: "demo", node: "v22", uptimeSec: 3 * 86400 + 5000 }, memory: { rss: 210 * 1048576, heapUsed: 90 * 1048576, heapTotal: 120 * 1048576, limitMb: 1536, hostTotal: 32 * 2 ** 30, hostFree: 11 * 2 ** 30 },
+      cpu: { load: [0.8, 0.6, 0.5], cores: 8 }, disk: { total: 12 * 2 ** 30, free: 4.3 * 2 ** 30 }, folders: { app: 95 * 1048576, state: 310 * 1048576 },
+      database: { bytes: 18 * 1048576, creators: 24, campaigns: 3, campaignsDeleted: 1, clips: 140, posts: 5, creatorsWithMetrics: 24, feedbackNew: 2, sessions: 4 },
+      jobs: { import: { startedAt: day(0.005), status: "ok", rows: 24 }, metrics: { startedAt: day(0.02), status: "ok" } }, sync: SYNC, checkedAt: day(0),
+      runs: [run("sheet_import", 0.1, { rowsImported: 24 }), run("metrics", 0.5, { rowsRead: 25, rowsImported: 1 }), run("sheet_import", 0.35, { rowsImported: 24 })] });
+  }
+  if (path.startsWith("/feedback")) return Promise.resolve({ ok: true, feedback: [
+    { id: 1, createdAt: day(1), name: "Người dùng mẫu", role: "planner", screen: "Khám phá", route: "#/kham-pha", kind: "ux", prio: "should", doing: "Lọc creator mẹ & bé", want: "Lưu bộ lọc hay dùng", actual: "Phải chọn lại mỗi lần", status: "new", adminNote: null },
+    { id: 2, createdAt: day(3), name: "Người dùng mẫu", role: "manager", screen: "Báo cáo", route: "#/bao-cao", kind: "feature", prio: "nice", doing: "Gửi báo cáo cho khách", want: "Logo khách trên PDF", status: "doing", adminNote: "Đang làm, dự kiến bản sau." },
+  ] });
+  if (path === "/admin/campaigns") return Promise.resolve({ ok: true, campaigns: [{ id: "demo-old", name: "Demo · Campaign xoá nhầm", brand: "Brand D", owner: "Bạn", statusBefore: "draft", deletedAt: day(2), deletedBy: "Bạn", entries: 3 }] });
   if (method !== "GET") return Promise.resolve({ ok: true, demo: true }); // ghi: chỉ đổi trên máy, không lưu
   return fail("demo_no_data");
 }

@@ -12,7 +12,7 @@ exec 9>$S/metrics.lock
 /usr/bin/flock -n 9 || exit 0
 {
   printf '%s ' "$(date '+%Y-%m-%d %H:%M:%S')"
-  $H/nodevenv/markus-v2-app/22/bin/node dist/metrics-cron.cjs --batch=25
+  $H/nodevenv/markus-v2-app/22/bin/node dist/metrics-cron.cjs
 } >>$LOG 2>&1
 tail -n 2000 $LOG >$LOG.tmp 2>/dev/null && mv $LOG.tmp $LOG
 chmod 600 $LOG

@@ -3,8 +3,8 @@
 // Muốn thêm hướng visual: (1) tạo styles/ten.css với [data-style="ten"], (2) thêm <link> trong index.html,
 //                         (3) thêm 1 mục vào STYLES dưới đây và vào NATIVE trong script đầu index.html.
 
-import { $, $$, esc, icon, openMenu } from "./core/ui.js";
-import { state, can, on, setNavOpen, ROLES, activeList, campaignHash, canSeeBooking, applySnapshot, FEATURES } from "./core/store.js";
+import { $, $$, esc, icon, openMenu, toast } from "./core/ui.js";
+import { state, can, on, setNavOpen, ROLES, activeList, campaignHash, canSeeBooking, applySnapshot, FEATURES, reload } from "./core/store.js";
 import { loadSession, loadSnapshot, logout } from "./data/live.js";
 import { renderLogin } from "./views/login.js";
 import { openAssistant } from "./views/assistant.js";
@@ -19,6 +19,9 @@ import * as campaigns from "./views/campaigns.js";
 import * as bookings from "./views/bookings.js";
 import * as freshness from "./views/freshness.js";
 import * as reports from "./views/reports.js";
+import * as about from "./views/about.js";
+import * as admin from "./views/admin.js";
+import { CURRENT } from "./data/releases.js";
 import { initFeedback } from "./core/feedback.js";
 import { initTour } from "./core/tour.js";
 
@@ -38,6 +41,8 @@ route("shortlist", alias("ung-vien"), "campaign");
 route("danh-sach", alias("lien-he"), "campaign");
 route("booking", bookings, "booking");
 route("bao-cao", reports, "bao-cao");
+route("gioi-thieu", about, "gioi-thieu");
+route("quan-tri", admin, "quan-tri");
 route("du-lieu", FEATURES.dataSync ? freshness : notYet("Dữ liệu & đồng bộ"), "du-lieu");
 
 /* ---------- Nav: step = nhãn nhóm (chỉ hiện khi sidebar mở rộng) ---------- */
@@ -51,6 +56,9 @@ const NAV = [
   { id: "booking", label: "Booking tracker", short: "Booking", icon: "calendar", badge: () => state.bookings.filter((b) => b.status !== "paid" && canSeeBooking(b)).length },
   { step: "4 · Báo cáo" },
   { id: "bao-cao", label: "Báo cáo", short: "Báo cáo", icon: "chart" },
+  { step: "Hệ thống" },
+  { id: "quan-tri", label: "Quản trị", short: "Quản trị", icon: "sliders", perm: "admin" },
+  { id: "gioi-thieu", label: "Giới thiệu & release note", short: "Giới thiệu", icon: "help", badge: () => (about.hasNews() ? 1 : 0) },
   { step: "5 · Học từ dữ liệu", feature: "dataSync" },
   { id: "du-lieu", label: "Dữ liệu & đồng bộ", short: "Dữ liệu", icon: "data", feature: "dataSync", badge: () => state.reviewQueue.length + state.conflicts.length },
 ];
@@ -166,4 +174,29 @@ drawStyle();
   drawUser();
   start($("#main"), () => { drawNav(); refreshContext(); });
   initTour($("#btn-help")); // lần đầu tự mở "Bắt đầu nhanh"; sau đó mở lại bằng nút Hướng dẫn
+  whatsNew();
+  autoRefresh();
 })();
+
+/* ---------- Có gì mới: lần đầu thấy một phiên bản mới → báo một lần, bấm để xem release note ---------- */
+function whatsNew() {
+  if (!about.hasNews()) return;
+  if (!about.seenVersion()) { about.markSeen(); return; } // người dùng mới: đã có hướng dẫn, không báo thêm
+  setTimeout(() => {
+    toast(`Có bản mới v${CURRENT.version}`, `${CURRENT.title} — mở Giới thiệu để xem có gì mới.`);
+    drawNav();
+  }, 1500);
+}
+
+/* ---------- Tự làm mới dữ liệu theo chu kỳ Admin đặt (Quản trị → Đồng bộ tự động) ---------- */
+// Bỏ qua lượt khi tab ẩn, đang gõ, đang mở hộp thoại / menu hoặc đang ở hướng dẫn — không làm mất thao tác dở.
+function autoRefresh() {
+  const every = (state.config && state.config.clientRefreshMinutes) || 0;
+  if (!every) return;
+  setInterval(async () => {
+    const busy = document.hidden || document.querySelector(".overlay, .modal, .drawer, [role=dialog]:not([hidden]), .menu, .tour-tip") ||
+      /input|textarea|select/i.test(document.activeElement?.tagName || "");
+    if (busy) return;
+    try { await reload(); } catch (e) { /* mạng chập chờn: thử lại lượt sau */ }
+  }, every * 60_000);
+}

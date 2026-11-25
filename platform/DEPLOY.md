@@ -98,3 +98,9 @@ Xoá app trong Node selector + thư mục `~/booking.markus.agency/v2` + DB `the
 - Kiểm tra nhanh (admin, chỉ đọc): `GET /v2/api/admin/sheet-check`.
 - Sao lưu Sheet: `php bridge/sheet-backup.php` → `~/markus-v2-state/sheet-backup-<thời điểm>.json` (giá trị + công thức + hyperlink). Đã sao lưu 21/11 23:21 trước khi làm tính năng.
 - Bản sao thử: Google Sheet "CREATOR_DB – bản thử ghi v2" (id `1vAJPb4a…`), trạng thái nhận diện riêng ở `~/markus-v2-state/php-state-copy/`. Chạy bridge với `MKV2_SHEET_ID=<id bản sao> MKV2_PHP_STATE_DIR=<thư mục đó>`. Bản sao còn 1 hàng thử "ZZ Test v2 …".
+
+## Chỉ số, theo dõi bài đăng và lịch đồng bộ (25–26/11/2026)
+- Cron chỉ số: `17 * * * * /bin/bash ~/markus-v2-state/metrics-cron.sh` (bản gốc `deploy/metrics-cron.sh`, log `metrics.log` chỉ số đếm). Đọc YouTube (trang kênh + RSS 15 video mới nhất) và tự tìm bài đăng của campaign đang chạy trong khoảng ngày theo dõi.
+- Lịch do Admin đặt ở **Quản trị → Đồng bộ tự động** (bảng `settings`, khoá `sync`). Cron chỉ "đánh thức"; `dist/sync-gate.cjs` (import) và chính job chỉ số kiểm tra lịch rồi mới chạy. Mỗi lần chạy ghi `sync_runs` (kind `sheet_import*` / `metrics`) — Quản trị → Hệ thống đọc từ đây.
+- Đổi `deploy/import-cron.sh` hoặc `deploy/metrics-cron.sh` thì chép lại vào `~/markus-v2-state/` (cron chạy bản ở đó).
+- Phiên bản + release note: `package.json` `version` và `ui/data/releases.js` (xem `CLAUDE.md`, mục 2).

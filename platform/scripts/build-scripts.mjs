@@ -3,7 +3,7 @@
 import { build } from "esbuild";
 
 await build({
-  entryPoints: { migrate: "scripts/migrate.ts", seed: "scripts/seed.ts", "import-sheet": "scripts/import-sheet.ts", "metrics-cron": "scripts/metrics-cron.ts" },
+  entryPoints: { migrate: "scripts/migrate.ts", seed: "scripts/seed.ts", "import-sheet": "scripts/import-sheet.ts", "metrics-cron": "scripts/metrics-cron.ts", "sync-gate": "scripts/sync-gate.ts" },
   outdir: "dist",
   outExtension: { ".js": ".cjs" },
   bundle: true,
@@ -13,4 +13,4 @@ await build({
   alias: { "@": "." },
   logLevel: "warning",
 });
-console.log("scripts built: dist/migrate.cjs dist/seed.cjs dist/import-sheet.cjs dist/metrics-cron.cjs");
+console.log("scripts built: dist/migrate.cjs dist/seed.cjs dist/import-sheet.cjs dist/metrics-cron.cjs dist/sync-gate.cjs");

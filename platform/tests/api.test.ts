@@ -214,8 +214,10 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       }
       const { GET } = await import(BOOK);
       expect(await (await GET(req("/api/bookings", { as: "planner" }))).text()).toContain("Secret launch X");
-      // a draft that already has a booking cannot be deleted
-      expect((await post("planner", `/api/campaigns/${id}`, { op: "delete" }, CAMP_ID)).status).toBe(409);
+      // soft delete keeps the booking; the campaign disappears from lists for everyone
+      expect((await post("planner", `/api/campaigns/${id}`, { op: "delete" }, CAMP_ID)).status).toBe(200);
+      expect(await (await GET(req("/api/bookings", { as: "admin" }))).text()).toContain("CR-0002");
+      expect((await getText("/api/campaigns", "admin")).text).not.toContain("Secret launch X");
     });
 
     it("lifecycle: dates, custom steps, drag move, done, and delete of a draft only", async () => {
@@ -258,14 +260,24 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       c = (await (await op(id, { op: "setStatus", status: "running" })).json()).campaign;
       expect(c.status).toBe("running");
       expect(c.startDate).toBeTruthy();
-      expect((await op(id, { op: "delete" })).status).toBe(409); // not a draft
+      expect((await op(id, { op: "delete" })).status).toBe(403); // running: only admin deletes
       c = (await (await op(id, { op: "setStatus", status: "done" })).json()).campaign;
       expect(c.status).toBe("done");
       expect(c.doneAt).toBeTruthy();
-      await op(id, { op: "setStatus", status: "draft" });
-      const del = await op(id, { op: "delete" });
+      const del = await op(id, { op: "delete" }, "admin"); // done → admin may delete
       expect(del.status).toBe(200);
       expect((await getText("/api/campaigns", "planner")).text).not.toContain("Lifecycle test");
+      // data is kept: admin sees it in the deleted list and restores it with its old status
+      const { GET: deletedList } = await import("@/app/api/admin/campaigns/route");
+      expect((await deletedList(req("/api/admin/campaigns", { as: "planner" }))).status).toBe(403);
+      const dl = await (await deletedList(req("/api/admin/campaigns", { as: "admin" }))).json();
+      expect(dl.campaigns.find((x: { id: string }) => x.id === id)).toMatchObject({ statusBefore: "done", entries: 2 });
+      expect((await op(id, { op: "restore" })).status).toBe(403);
+      const back = await (await op(id, { op: "restore" }, "admin")).json();
+      expect(back.campaign).toMatchObject({ status: "done" });
+      // a draft: the owner may delete it
+      const d2 = (await (await post("planner", "/api/campaigns", { name: "Draft to delete" }, CAMP)).json()).campaign.id as string;
+      expect((await op(d2, { op: "delete" })).status).toBe(200);
     });
   });
 
@@ -388,6 +400,62 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       expect(mg.json.scope).toBe("team");
       expect(mg.json.team.length).toBeGreaterThan(0);
       expect(mg.text).toContain("Tech reviewers");
+    });
+  });
+
+  describe("feedback and admin tools", () => {
+    const call = async (as: string, mod: string, method: "GET" | "POST", path: string, body?: unknown) => {
+      const m = (await import(mod)) as Record<string, (r: Request) => Promise<Response>>;
+      const headers: Record<string, string> = method === "POST" ? { origin: ORIGIN, "x-csrf-token": cookies[as].csrf, "content-type": "application/json" } : {};
+      const res = await m[method](req(path, { as, method, headers, body }));
+      return { status: res.status, text: await res.clone().text(), json: (await res.json().catch(() => ({}))) as Record<string, any> };
+    };
+    const FB = "@/app/api/feedback/route";
+    const AFB = "@/app/api/admin/feedback/route";
+
+    it("anyone sends feedback and sees only their own; admin triages all", async () => {
+      const f = { kind: "ux", prio: "should", doing: "Lọc creator", want: "Sắp theo tier", screen: "Khám phá", route: "#/kham-pha", appVersion: "1.0.0" };
+      expect((await call("viewer", FB, "POST", "/api/feedback", f)).status).toBe(201);
+      expect((await call("planner", FB, "POST", "/api/feedback", { ...f, want: "Planner muốn X" })).status).toBe(201);
+      expect((await call("planner", FB, "POST", "/api/feedback", { ...f, kind: "nope" })).status).toBe(422);
+      const mine = (await call("viewer", FB, "GET", "/api/feedback?all=1")).json.feedback;
+      expect(mine).toHaveLength(1);
+      expect(JSON.stringify(mine)).not.toContain("Planner muốn X");
+      const all = (await call("admin", FB, "GET", "/api/feedback?all=1")).json.feedback;
+      expect(all.length).toBeGreaterThanOrEqual(2);
+      const id = all.find((x: { want: string }) => x.want === "Planner muốn X").id;
+      expect((await call("planner", AFB, "POST", "/api/admin/feedback", { op: "update", id, status: "done" })).status).toBe(403);
+      const upd = await call("admin", AFB, "POST", "/api/admin/feedback", { op: "update", id, status: "doing", adminNote: "Đang làm" });
+      expect(upd.json.feedback.find((x: { id: number }) => x.id === id)).toMatchObject({ status: "doing", adminNote: "Đang làm" });
+      expect((await call("planner", FB, "GET", "/api/feedback")).json.feedback[0]).toMatchObject({ status: "doing", adminNote: "Đang làm" });
+    });
+
+    it("system status, sync schedule and run-now are admin only; schedule gates the cron", async () => {
+      for (const [mod, path] of [["@/app/api/admin/system/route", "/api/admin/system"], ["@/app/api/admin/sync/route", "/api/admin/sync"]]) {
+        expect((await call("manager", mod, "GET", path)).status).toBe(403);
+        expect((await call("admin", mod, "GET", path)).status).toBe(200);
+      }
+      const sys = (await call("admin", "@/app/api/admin/system/route", "GET", "/api/admin/system")).json;
+      expect(sys.memory.rss).toBeGreaterThan(0);
+      expect(sys.database.bytes).toBeGreaterThan(0);
+      expect(sys.database.feedbackNew).toBeGreaterThanOrEqual(1);
+      expect(sys.text ?? JSON.stringify(sys)).not.toMatch(/mysql:\/\/|password|DATABASE_URL/i);
+      const SYNC = "@/app/api/admin/sync/route";
+      const cur = (await call("admin", SYNC, "GET", "/api/admin/sync")).json.settings;
+      expect((await call("admin", SYNC, "POST", "/api/admin/sync", { settings: { ...cur, importMinutes: 7 } })).status).toBe(422);
+      expect((await call("manager", SYNC, "POST", "/api/admin/sync", { settings: cur })).status).toBe(403);
+      const { isDue } = await import("@/lib/admin/sync-settings");
+      expect((await call("admin", SYNC, "POST", "/api/admin/sync", { settings: { ...cur, metricsHours: 0, importMinutes: 0 } })).status).toBe(200);
+      expect(await isDue("metrics")).toBe(false);
+      expect(await isDue("import")).toBe(false);
+      await call("admin", SYNC, "POST", "/api/admin/sync", { settings: { ...cur, metricsHours: 6 } });
+      const { recordRun } = await import("@/lib/admin/sync-settings");
+      await recordRun("metrics", new Date(Date.now() - 2 * 3600e3), true, { refreshed: 1 });
+      expect(await isDue("metrics")).toBe(false); // ran 2 h ago, every 6 h
+      expect(await isDue("metrics", new Date(Date.now() + 5 * 3600e3))).toBe(true);
+      const snap = JSON.parse((await getText("/api/snapshot", "viewer")).text);
+      expect(snap.config).toMatchObject({ clientRefreshMinutes: cur.clientRefreshMinutes, version: expect.any(String) });
+      expect((await call("planner", "@/app/api/admin/jobs/route", "POST", "/api/admin/jobs", { job: "metrics" })).status).toBe(403);
     });
   });
 

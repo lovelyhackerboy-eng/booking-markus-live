@@ -9,6 +9,8 @@ import { listCampaigns, visibleCampaignIds } from "@/lib/campaigns/repo";
 import { loadCreators } from "@/lib/creators/repo";
 import { handle, json } from "@/lib/http";
 import { sheetWriteEnabled } from "@/lib/sheet/bridge";
+import { getSyncSettings } from "@/lib/admin/sync-settings";
+import { APP_VERSION, buildId } from "@/lib/admin/system";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ export const GET = handle(async (req: Request) => {
     user: { email: u.email, name: u.name, role: u.role, perms: PERMS[u.role] },
     csrf: u.csrf,
     features: { sheetWrite: sheetWriteEnabled() },
+    config: { clientRefreshMinutes: (await getSyncSettings()).clientRefreshMinutes, version: APP_VERSION, build: buildId() },
     team,
     creators,
     campaigns,
