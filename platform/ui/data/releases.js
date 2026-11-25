@@ -5,6 +5,15 @@
 
 export const RELEASES = [
   {
+    version: "1.1.1", date: "2026-11-25", title: "Markus Creator OS v2 là bản chính thức",
+    new: [
+      "Từ hôm nay v2 là bản chính thức: mở booking.markus.agency (hay bất kỳ đường dẫn cũ nào) đều tự chuyển sang app này. Bản cũ không còn dùng nữa.",
+    ],
+    improved: [
+      "Dữ liệu creator vẫn lấy từ Google Sheet CREATOR_DB như trước; campaign, booking và góp ý giữ nguyên.",
+    ],
+  },
+  {
     version: "1.1.0", date: "2026-11-26", title: "Hộp chào & chế độ hướng dẫn rõ ràng hơn",
     new: [
       "Hộp chào khi mở app lần đầu và sau mỗi lần cập nhật: giải thích hướng dẫn hoạt động thế nào, bấm gì để đi tiếp, thoát ra sao.",

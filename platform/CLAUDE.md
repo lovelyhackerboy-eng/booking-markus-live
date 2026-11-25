@@ -22,7 +22,7 @@
 - Chạy thử toàn bộ hướng dẫn và xác nhận **không có request ghi nào** lên server trong lúc chạy (bẫy `fetch`).
 
 ## 4. Deploy và dữ liệu thật
-- Chỉ deploy lên `/v2`. Đổi `/` sang v2 cần người dùng đồng ý riêng.
+- Từ 25/11/2026 v2 là bản production chính thức: `/` và mọi đường dẫn cũ của app PHP (v1) chuyển 302 sang `/v2/` (khối `MARKUS V2 IS PRODUCTION` trong `~/booking.markus.agency/.htaccess`). Không xoá / di chuyển file v1: import Sheet (`bridge/*.php`) và file khoá (`hosting/`) vẫn dùng chúng. App vẫn chạy ở basePath `/v2`; deploy như cũ.
 - Trước khi deploy: `tsc`, toàn bộ `vitest` (với `TEST_DATABASE_URL`) phải xanh; sao lưu DB trên host trước khi chạy migration mới.
 - Quy trình: `MSYS_NO_PATHCONV=1 bash deploy/package.sh` → `scp` gói + `BUILD_ID` → `ssh … 'DEPS=0 bash -s' < deploy/host-deploy.sh` (xem `DEPLOY.md`). Đổi script cron (`deploy/*-cron.sh`) thì chép lại bản ở `~/markus-v2-state/`.
 - Đổi crontab: sao lưu trước, cài từ file (`crontab file`), không dùng `(crontab -l; …) | crontab -`.

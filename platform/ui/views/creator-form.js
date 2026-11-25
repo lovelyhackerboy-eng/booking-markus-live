@@ -90,7 +90,7 @@ export function openEditCreator(c) {
   const before = current(c);
   const o = openOverlay({
     kind: "drawer", wide: true, title: `Sửa thông tin · ${c.name}`,
-    body: `<p class="muted" style="margin-bottom:12px">${icon("data", 14)} Lưu sẽ ghi thẳng vào Google Sheet CREATOR_DB (cùng file app cũ đang dùng), rồi cập nhật lại v2. Tên và link kênh sửa trên Sheet.</p>${formHtml(before, false)}`,
+    body: `<p class="muted" style="margin-bottom:12px">${icon("data", 14)} Lưu sẽ ghi thẳng vào Google Sheet CREATOR_DB, rồi cập nhật lại app ngay. Tên và link kênh sửa trên Sheet.</p>${formHtml(before, false)}`,
     footer: `<span class="spacer"></span><button class="btn" data-close type="button">Huỷ</button><button class="btn btn-primary" type="button" id="cf-save">${icon("check", 16)} Lưu vào Sheet</button>`,
   });
   const saveBtn = $("#cf-save", o.el);
@@ -118,7 +118,7 @@ export function openEditCreator(c) {
 /** Màn Thêm creator (#/them-creator). */
 export function render(el) {
   if (!can("edit")) { el.innerHTML = `<div class="card empty"><strong>Vai trò Viewer không thêm được creator.</strong></div>`; return; }
-  el.innerHTML = `<div class="page-head"><h1>Thêm creator</h1><p class="muted">Ghi một hàng mới vào Google Sheet CREATOR_DB; app cũ và v2 cùng thấy sau vài giây.</p></div>
+  el.innerHTML = `<div class="page-head"><h1>Thêm creator</h1><p class="muted">Ghi một hàng mới vào Google Sheet CREATOR_DB; creator hiện trong app sau vài giây.</p></div>
     <section class="card card-pad">${formHtml(Object.fromEntries(Object.keys(current({ channels: {}, rates: [] })).map((k) => [k, ""])), true)}
     <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn btn-primary" type="button" id="cf-create">${icon("plus", 16)} Thêm vào Sheet</button></div></section>`;
   const norm = (u) => String(u || "").trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "").replace(/\/+$/, "");

@@ -65,7 +65,16 @@ Thử bản đóng gói ở máy giống hosting: thư mục thư viện phải 
 
 ## Quay lại
 
-Xoá app trong Node selector + thư mục `~/booking.markus.agency/v2` + DB `thestvco_markus_v2`. App PHP không bị đụng tới.
+Xoá app trong Node selector + thư mục `~/booking.markus.agency/v2` + DB `thestvco_markus_v2`. Nhớ bỏ chuyển hướng `/` (mục dưới) trước, nếu không trang chủ sẽ trỏ vào app đã xoá.
+
+## v2 là bản chính thức — 25/11/2026
+
+- `/` và mọi đường dẫn của app PHP cũ (v1: `index.html`, `api.php`, `sync-data.php`, `google-auth.php`…) chuyển **302** sang `/v2/`. Trừ `/v2`, `/.well-known/` (gia hạn SSL) và `/cgi-bin/`. `_mk/` và `hosting/` vẫn 403 như trước.
+- Cách làm: khối `# BEGIN MARKUS V2 IS PRODUCTION … # END` cuối `~/booking.markus.agency/.htaccess`. Bản `.htaccess` trước khi đổi: `~/markus-v2-state/v1-htaccess-backup-20261125-085812`.
+- **Không xoá, không di chuyển** file v1: `bridge/sheet-export.php` / `sheet-write.php` (import 15 phút và ghi Sheet) `require` `~/booking.markus.agency/_mk/*.php`; khoá service account và DeepSeek nằm ở `~/booking.markus.agency/hosting/`. Chạy bằng PHP CLI nên không bị chuyển hướng ảnh hưởng.
+- v1 không có cron riêng; Sheet CREATOR_DB vẫn là nguồn dữ liệu creator.
+- Quay lại v1 (khẩn cấp): xoá khối trên khỏi `.htaccess` (hoặc chép lại bản sao lưu). Dữ liệu campaign / booking tạo trên v2 từ 20/11 nằm ở MariaDB, v1 không thấy.
+- Giữ 302 (chưa 301) để trình duyệt không nhớ vĩnh viễn trong thời gian chuyển đổi; đổi sang 301 khi chắc không cần quay lại.
 
 ## Nhập Sheet định kỳ (cron, bật 21/11/2026)
 
