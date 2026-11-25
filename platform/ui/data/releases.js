@@ -5,6 +5,19 @@
 
 export const RELEASES = [
   {
+    version: "1.2.0", date: "2026-11-25", title: "Cấp quyền người dùng & số liệu hệ thống đúng gói hosting",
+    new: [
+      "Quản trị → Người dùng: xem ai đã đăng nhập, lần đăng nhập gần nhất và đổi vai trò (Viewer, Planner, Quản lý, Admin).",
+      "Người đăng nhập lần đầu luôn ở quyền Viewer (chỉ xem); Admin cấp thêm quyền khi cần. Vai trò không còn lấy từ cột Role trên Sheet — Sheet chỉ quyết định ai được đăng nhập.",
+    ],
+    improved: [
+      "Tình trạng hệ thống hiện CPU (giới hạn 1,5 nhân), RAM (1,5 GB), ổ đĩa (12 GB), số tiến trình và truy cập đồng thời của chính gói hosting, thay cho cấu hình của cả máy chủ vật lý dùng chung.",
+    ],
+    fixed: [
+      "Trang Hệ thống từng hiện 48 nhân CPU và RAM / ổ đĩa của cả máy chủ dùng chung — không phải tài nguyên của gói.",
+    ],
+  },
+  {
     version: "1.1.1", date: "2026-11-25", title: "Markus Creator OS v2 là bản chính thức",
     new: [
       "Từ hôm nay v2 là bản chính thức: mở booking.markus.agency (hay bất kỳ đường dẫn cũ nào) đều tự chuyển sang app này. Bản cũ không còn dùng nữa.",

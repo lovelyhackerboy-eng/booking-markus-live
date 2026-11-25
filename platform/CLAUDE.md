@@ -28,3 +28,5 @@
 - Đổi crontab: sao lưu trước, cài từ file (`crontab file`), không dùng `(crontab -l; …) | crontab -`.
 - Không bao giờ in dữ liệu cá nhân (điện thoại, email, ghi chú) từ server; chỉ số đếm.
 - Xoá campaign là xoá mềm (`status = deleted`), không xoá dữ liệu.
+- Vai trò: tab Employees trên Sheet chỉ quyết định **ai được đăng nhập**; vai trò nằm ở bảng `users`, Admin đổi ở Quản trị → Người dùng. Đăng nhập lần đầu luôn là `viewer` (trừ khi DB chưa có admin nào). Không đọc lại vai trò từ Sheet.
+- Số liệu hệ thống: chỉ dùng giới hạn gói hosting (`uapi ResourceUsage get_usages`), không dùng `os.cpus()` / `os.totalmem()` / `statfs` (đó là máy chủ vật lý dùng chung).

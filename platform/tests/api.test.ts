@@ -4,11 +4,11 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { setDirectoryForTests } from "@/lib/auth/directory";
+import { DbDirectory, setDirectoryForTests, type Employee } from "@/lib/auth/directory";
 import { setGoogleKeysForTests } from "@/lib/auth/google";
 import { createSession } from "@/lib/auth/session";
 import { closeDb, db, pool } from "@/lib/db/client";
-import { sessions, users } from "@/lib/db/schema";
+import { auditLog, sessions, users } from "@/lib/db/schema";
 import { SEED_USERS, assertLocalDatabase, seedAll } from "@/lib/db/seed-data";
 import { BOOKINGS, CREATORS } from "../seed/prototype-data.mjs";
 import { fakeGoogle } from "./helpers/google-keys";
@@ -436,7 +436,13 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
         expect((await call("admin", mod, "GET", path)).status).toBe(200);
       }
       const sys = (await call("admin", "@/app/api/admin/system/route", "GET", "/api/admin/system")).json;
-      expect(sys.memory.rss).toBeGreaterThan(0);
+      expect(sys.app.rss).toBeGreaterThan(0);
+      expect(typeof sys.app.cpuPct).toBe("number");
+      // Never the shared physical server's numbers (48 cores / host RAM / host disk) — only the hosting plan (null here).
+      expect(sys).not.toHaveProperty("cpu");
+      expect(sys).not.toHaveProperty("disk");
+      expect(JSON.stringify(sys)).not.toMatch(/hostTotal|hostFree|"cores"/);
+      expect(sys.plan === null || typeof sys.plan.cpu.used === "number").toBe(true);
       expect(sys.database.bytes).toBeGreaterThan(0);
       expect(sys.database.feedbackNew).toBeGreaterThanOrEqual(1);
       expect(sys.text ?? JSON.stringify(sys)).not.toMatch(/mysql:\/\/|password|DATABASE_URL/i);
@@ -456,6 +462,66 @@ describe.skipIf(!TEST_DB)("API with MariaDB", () => {
       const snap = JSON.parse((await getText("/api/snapshot", "viewer")).text);
       expect(snap.config).toMatchObject({ clientRefreshMinutes: cur.clientRefreshMinutes, version: expect.any(String) });
       expect((await call("planner", "@/app/api/admin/jobs/route", "POST", "/api/admin/jobs", { job: "metrics" })).status).toBe(403);
+    });
+
+    it("roles: first login is viewer whatever the Sheet says; only Admin raises it; Sheet still gates access", async () => {
+      const g = await fakeGoogle();
+      setGoogleKeysForTests(g.keys);
+      const sheet = new Map<string, Employee>([["newbie@markus.test", { email: "newbie@markus.test", name: "Người Mới", role: "admin" }]]);
+      const dbDir = new DbDirectory();
+      // The Sheet = this map + the seed users (the users table must NOT act as the allow-list here).
+      const seeded = new Set<string>(SEED_USERS.map((u) => u.email));
+      setDirectoryForTests({ lookup: async (e: string) => sheet.get(e.trim().toLowerCase()) ?? (seeded.has(e.trim().toLowerCase()) ? dbDir.lookup(e) : null) });
+      const { POST } = await routes.google();
+      const login = async () => {
+        const tok = await g.sign({ email: "newbie@markus.test", email_verified: true, name: "Người Mới" }, { aud: process.env.GOOGLE_CLIENT_ID });
+        const res = await POST(req("/api/auth/google", { method: "POST", headers: { origin: ORIGIN }, body: { idToken: tok } }));
+        const body = await res.json();
+        cookies.newbie = { cookie: (res.headers.get("set-cookie") || "").split(";")[0], csrf: body.csrf };
+        return body;
+      };
+      try {
+        expect((await login()).user).toMatchObject({ role: "viewer", perms: [] }); // Sheet says Admin → still viewer
+        expect(JSON.parse((await getText("/api/auth/session", "newbie")).text).user.role).toBe("viewer");
+        expect((await login()).user.role).toBe("viewer"); // second login does not pick up the Sheet role
+        const U = "@/app/api/admin/users/route";
+        expect((await call("newbie", U, "GET", "/api/admin/users")).status).toBe(403);
+        expect((await call("planner", U, "POST", "/api/admin/users", { email: "newbie@markus.test", role: "admin" })).status).toBe(403);
+        expect((await call("admin", U, "POST", "/api/admin/users", { email: "newbie@markus.test", role: "boss" })).status).toBe(422);
+        expect((await call("admin", U, "POST", "/api/admin/users", { email: "admin@markus.test", role: "viewer" })).status).toBe(409); // not yourself
+        const list = (await call("admin", U, "GET", "/api/admin/users")).json.users as { email: string; role: string }[];
+        expect(list.find((x) => x.email === "newbie@markus.test")?.role).toBe("viewer");
+        expect((await call("admin", U, "POST", "/api/admin/users", { email: "newbie@markus.test", role: "planner" })).status).toBe(200);
+        expect(JSON.parse((await getText("/api/auth/session", "newbie")).text).user.role).toBe("planner"); // applies at once
+        expect((await login()).user.role).toBe("planner"); // and survives the next login
+        const audit = await db().select().from(auditLog).where(eq(auditLog.target, "user:newbie@markus.test"));
+        expect(audit.at(-1)).toMatchObject({ action: "user.role", before: "viewer", after: "planner", actorEmail: "admin@markus.test" });
+        sheet.delete("newbie@markus.test"); // removed from Employees → session no longer valid
+        expect((await getText("/api/auth/session", "newbie")).status).toBe(401);
+      } finally {
+        setDirectoryForTests(undefined);
+      }
+    });
+
+    it("roles: bootstrap — with no admin in the database a Sheet admin keeps admin; never remove the last admin", async () => {
+      const g = await fakeGoogle();
+      setGoogleKeysForTests(g.keys);
+      const admins = (await db().select().from(users).where(eq(users.role, "admin"))).map((u) => u.email);
+      const dbDir = new DbDirectory();
+      setDirectoryForTests({ lookup: async (e: string) => (e.trim().toLowerCase() === "boot@markus.test" ? { email: "boot@markus.test", name: "Boot", role: "admin" } : dbDir.lookup(e)) });
+      try {
+        await db().update(users).set({ role: "manager" }).where(eq(users.role, "admin"));
+        const tok = await g.sign({ email: "boot@markus.test", email_verified: true }, { aud: process.env.GOOGLE_CLIENT_ID });
+        const { POST } = await routes.google();
+        const body = await (await POST(req("/api/auth/google", { method: "POST", headers: { origin: ORIGIN }, body: { idToken: tok } }))).json();
+        expect(body.user.role).toBe("admin");
+        const { setUserRole } = await import("@/lib/admin/users");
+        await expect(setUserRole("someone@markus.test", "boot@markus.test", "viewer")).rejects.toMatchObject({ status: 409 }); // last admin
+      } finally {
+        for (const e of admins) await db().update(users).set({ role: "admin" }).where(eq(users.email, e));
+        await db().delete(users).where(eq(users.email, "boot@markus.test"));
+        setDirectoryForTests(undefined);
+      }
     });
 
     it("tutorial reset: epoch follows the build, admin can reset everyone now or turn off reset-on-deploy", async () => {

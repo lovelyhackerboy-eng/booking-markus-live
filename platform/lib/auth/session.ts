@@ -1,12 +1,16 @@
 // Server sessions in MariaDB. Cookie holds a random id; the table stores only its sha256.
-// Limits match PHP: 8 h idle, 24 h absolute. The role is re-read from the directory on every request.
+// Limits match PHP: 8 h idle, 24 h absolute.
+// WHO may log in: the directory (Employees tab), re-checked on every request — removing someone revokes access.
+// WHICH role: the users row, managed by Admin (Quản trị → Người dùng). A first login always starts as viewer
+// (least privilege); the Sheet's Role column only counts when no admin exists yet (bootstrap, e.g. a fresh database).
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { sessions, users } from "../db/schema";
 import { env } from "../env";
 import { fail, readCookie } from "../http";
 import { directory, type Employee } from "./directory";
+import type { Role } from "./roles";
 
 export const COOKIE = "mkv2_sid";
 const IDLE_MS = 8 * 3600_000;
@@ -22,20 +26,30 @@ function cookieHeader(value: string, maxAgeSec: number): string {
   return `${COOKIE}=${value}; Path=${env.basePath}; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure}`;
 }
 
-export async function createSession(emp: Employee): Promise<{ cookie: string; csrf: string }> {
+/** Role for someone logging in: their users row if they have one, otherwise viewer (bootstrap: no admin yet → Sheet role). */
+async function roleOnLogin(emp: Employee): Promise<Role> {
+  const [u] = await db().select({ role: users.role }).from(users).where(eq(users.email, emp.email)).limit(1);
+  if (u) return u.role;
+  const [a] = await db().select({ n: sql<number>`COUNT(*)` }).from(users).where(eq(users.role, "admin"));
+  return Number(a?.n ?? 0) === 0 && emp.role === "admin" ? "admin" : "viewer";
+}
+
+export async function createSession(emp: Employee): Promise<{ cookie: string; csrf: string; role: Role }> {
   const id = randomBytes(32).toString("base64url");
   const csrf = randomBytes(32).toString("hex");
   const now = new Date();
   await db().insert(sessions).values({ idHash: sha256(id), email: emp.email, csrf, createdAt: now, lastSeenAt: now });
+  // Never overwrite an existing role here: only Admin changes roles.
   await db()
     .insert(users)
-    .values({ email: emp.email, name: emp.name || emp.email, role: emp.role, lastLoginAt: now, createdAt: now })
-    .onDuplicateKeyUpdate({ set: { name: emp.name || emp.email, role: emp.role, lastLoginAt: now } });
+    .values({ email: emp.email, name: emp.name || emp.email, role: await roleOnLogin(emp), lastLoginAt: now, createdAt: now })
+    .onDuplicateKeyUpdate({ set: { name: emp.name || emp.email, lastLoginAt: now } });
+  const [u] = await db().select({ role: users.role }).from(users).where(eq(users.email, emp.email)).limit(1);
   // Housekeeping: drop expired rows of this user (cheap, indexed).
   await db()
     .delete(sessions)
     .where(and(eq(sessions.email, emp.email), lt(sessions.createdAt, new Date(now.getTime() - ABS_MS))));
-  return { cookie: cookieHeader(id, Math.floor(ABS_MS / 1000)), csrf };
+  return { cookie: cookieHeader(id, Math.floor(ABS_MS / 1000)), csrf, role: u?.role ?? "viewer" };
 }
 
 export const clearCookie = () => cookieHeader("", 0);
@@ -49,7 +63,12 @@ export async function currentUser(req: Request): Promise<CurrentUser | null> {
   const id = readCookie(req, COOKIE);
   if (!id || id.length > 100) return null;
   const hash = sha256(id);
-  const [s] = await db().select().from(sessions).where(eq(sessions.idHash, hash)).limit(1);
+  const [s] = await db()
+    .select({ email: sessions.email, csrf: sessions.csrf, createdAt: sessions.createdAt, lastSeenAt: sessions.lastSeenAt, role: users.role })
+    .from(sessions)
+    .leftJoin(users, eq(users.email, sessions.email))
+    .where(eq(sessions.idHash, hash))
+    .limit(1);
   if (!s) return null;
   const now = Date.now();
   if (now - s.createdAt.getTime() > ABS_MS || now - s.lastSeenAt.getTime() > IDLE_MS) {
@@ -64,7 +83,7 @@ export async function currentUser(req: Request): Promise<CurrentUser | null> {
   if (now - s.lastSeenAt.getTime() > TOUCH_MS) {
     await db().update(sessions).set({ lastSeenAt: new Date(now) }).where(eq(sessions.idHash, hash));
   }
-  return { ...emp, csrf: s.csrf };
+  return { ...emp, role: s.role ?? "viewer", csrf: s.csrf };
 }
 
 export async function requireUser(req: Request): Promise<CurrentUser> {

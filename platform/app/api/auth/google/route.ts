@@ -1,5 +1,6 @@
 // POST /v2/api/auth/google { idToken } → verify the Google ID token, look the email up in Employees, start a session.
 // Same contract as PHP google-auth.php: unknown email → 401 not_authorized; the role never comes from the client.
+// First login → viewer (least privilege); Admin raises the role in Quản trị → Người dùng.
 import { verifyGoogleIdToken } from "@/lib/auth/google";
 import { directory } from "@/lib/auth/directory";
 import { PERMS } from "@/lib/auth/roles";
@@ -25,9 +26,9 @@ export const POST = handle(async (req: Request) => {
     await slow();
     return fail(401, "not_authorized");
   }
-  const { cookie, csrf } = await createSession(emp);
+  const { cookie, csrf, role } = await createSession(emp);
   return json(
-    { ok: true, user: { email: emp.email, name: emp.name, role: emp.role, perms: PERMS[emp.role] }, csrf },
+    { ok: true, user: { email: emp.email, name: emp.name, role, perms: PERMS[role] }, csrf },
     { headers: { "set-cookie": cookie } },
   );
 });

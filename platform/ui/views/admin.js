@@ -6,17 +6,20 @@
 //   Chi-so     : công thức view trung bình / ER (mở hộp cài đặt chỉ số)
 
 import { $, esc, icon, delegate, toast, fmtNum, fmtDate, relTime } from "../core/ui.js";
-import { can, reload } from "../core/store.js";
+import { can, reload, state, ROLES } from "../core/store.js";
 import { api } from "../data/live.js";
 import { pageHead, emptyState } from "../core/parts.js";
 import { refresh, setQuery } from "../core/router.js";
 import { openMetricsSettings, formulaText } from "./clips.js";
 
-const TABS = [["he-thong", "Hệ thống", "data"], ["dong-bo", "Đồng bộ tự động", "sync"], ["gop-y", "Góp ý", "message"], ["da-xoa", "Campaign đã xoá", "trash"], ["chi-so", "Công thức chỉ số", "chart"]];
+const TABS = [["he-thong", "Hệ thống", "data"], ["nguoi-dung", "Người dùng", "users"], ["dong-bo", "Đồng bộ tự động", "sync"], ["gop-y", "Góp ý", "message"], ["da-xoa", "Campaign đã xoá", "trash"], ["chi-so", "Công thức chỉ số", "chart"]];
 const cache = {};
 let fbFilter = "new", timer = null;
 const bytes = (n) => (n == null ? "—" : n >= 1 << 30 ? (n / (1 << 30)).toFixed(2) + " GB" : n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + " MB" : Math.round(n / 1024) + " KB");
 const dur = (s) => (s >= 86400 ? `${Math.floor(s / 86400)} ngày ${Math.floor((s % 86400) / 3600)} giờ` : s >= 3600 ? `${Math.floor(s / 3600)} giờ ${Math.floor((s % 3600) / 60)} phút` : `${Math.floor(s / 60)} phút`);
+const pct = (n) => `${Math.round(n ?? 0)}%`;
+const cores = (limitPct) => (limitPct / 100).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+const waiting = () => (cache.users?.users || []).filter((u) => u.role === "viewer" && Date.now() - new Date(u.createdAt) < 14 * 864e5).length;
 const meter = (used, total, warnAt = 0.8) => { const p = total ? Math.min(100, Math.round((used / total) * 100)) : 0; return `<span class="bar ${p >= warnAt * 100 ? "bar-warning" : ""}"><i style="width:${p}%"></i></span><span class="dt-sub">${p}%</span>`; };
 const JOB = { sheet_import: "Nhập Google Sheet (tự động)", sheet_import_api: "Nhập Google Sheet (từ app)", metrics: "Chỉ số YouTube & theo dõi bài" };
 const FB_STATUS = { new: ["Mới", "badge-primary"], doing: ["Đang xử lý", "badge-warning"], done: ["Đã xong", "badge-success"], wontfix: ["Không làm", ""] };
@@ -37,29 +40,33 @@ export function render(el, p) {
   const tab = TABS.some(([k]) => k === p.tab) ? p.tab : "he-thong";
   el.innerHTML = `<div class="page admin">
     ${pageHead("Quản trị", "Tình trạng hệ thống, đồng bộ tự động, góp ý của người dùng và dữ liệu đã xoá.")}
-    <div class="segmented admin-tabs" role="tablist" aria-label="Mục quản trị">${TABS.map(([k, l, ic]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}" aria-pressed="${tab === k}">${icon(ic, 16)} ${l}${k === "gop-y" && cache.sys?.database?.feedbackNew ? ` <span class="badge badge-primary">${cache.sys.database.feedbackNew}</span>` : ""}</button>`).join("")}</div>
+    <div class="segmented admin-tabs" role="tablist" aria-label="Mục quản trị">${TABS.map(([k, l, ic]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}" aria-pressed="${tab === k}">${icon(ic, 16)} ${l}${k === "gop-y" && cache.sys?.database?.feedbackNew ? ` <span class="badge badge-primary">${cache.sys.database.feedbackNew}</span>` : ""}${k === "nguoi-dung" && waiting() ? ` <span class="badge badge-primary">${waiting()}</span>` : ""}</button>`).join("")}</div>
     <div id="admin-body"></div>
   </div>`;
   delegate(el, "click", "[data-tab]", (e, b) => { setQuery("quan-tri", { tab: b.dataset.tab }); refresh(); });
   const body = $("#admin-body", el);
-  ({ "he-thong": system, "dong-bo": sync, "gop-y": feedbackTab, "da-xoa": deleted, "chi-so": metrics })[tab](body);
+  ({ "he-thong": system, "nguoi-dung": people, "dong-bo": sync, "gop-y": feedbackTab, "da-xoa": deleted, "chi-so": metrics })[tab](body);
 }
 
 /* ---------- Hệ thống ---------- */
 async function system(el) {
   const s = await load("sys", "/admin/system", el);
   if (!s) return;
-  const mem = s.memory, rssMb = mem.rss / 1048576;
+  const p = s.plan, a = s.app;
   const runs = s.runs || [];
   el.innerHTML = `
     <div class="row-wrap"><span class="faint">Cập nhật ${relTime(s.checkedAt)} · tự làm mới mỗi 30 giây khi đang mở</span><span class="spacer"></span><button class="btn btn-ghost" type="button" data-act="sys-refresh">${icon("sync", 16)} Làm mới</button></div>
     <div class="report-kpis">
-      <div class="card card-pad report-kpi"><span class="faint">Phiên bản</span><strong>v${esc(s.app.version)}</strong><span class="dt-sub">build ${esc(s.app.build)} · Node ${esc(s.app.node)}</span><span class="dt-sub">Chạy liên tục ${dur(s.app.uptimeSec)}</span></div>
-      <div class="card card-pad report-kpi"><span class="faint">Bộ nhớ app</span><strong class="num">${Math.round(rssMb)} MB</strong>${meter(rssMb, mem.limitMb)}<span class="dt-sub">trên giới hạn gói hosting ${mem.limitMb.toLocaleString("vi-VN")} MB · heap ${bytes(mem.heapUsed)}</span></div>
-      <div class="card card-pad report-kpi"><span class="faint">Bộ nhớ máy chủ</span><strong class="num">${bytes(mem.hostTotal - mem.hostFree)}</strong>${meter(mem.hostTotal - mem.hostFree, mem.hostTotal, 0.9)}<span class="dt-sub">trên ${bytes(mem.hostTotal)} · CPU load ${s.cpu.load.join(" / ")} (${s.cpu.cores} nhân)</span></div>
-      <div class="card card-pad report-kpi"><span class="faint">Ổ đĩa</span><strong class="num">${s.disk ? bytes(s.disk.total - s.disk.free) : "—"}</strong>${s.disk ? meter(s.disk.total - s.disk.free, s.disk.total, 0.85) : ""}<span class="dt-sub">${s.folders.app == null && s.folders.state == null ? "Đang tính dung lượng thư mục…" : `App ${bytes(s.folders.app)} · dữ liệu & sao lưu ${bytes(s.folders.state)}`}</span></div>
+      <div class="card card-pad report-kpi"><span class="faint">Phiên bản</span><strong>v${esc(a.version)}</strong><span class="dt-sub">build ${esc(a.build)} · Node ${esc(a.node)}</span><span class="dt-sub">Chạy liên tục ${dur(a.uptimeSec)}</span></div>
+      ${p ? `
+      <div class="card card-pad report-kpi" data-tour="sys-plan"><span class="faint">CPU gói hosting</span><strong class="num">${cores(p.cpu.used)} nhân</strong>${meter(p.cpu.used, p.cpu.limit)}<span class="dt-sub">trên ${cores(p.cpu.limit)} nhân của gói · app v2 đang dùng ${cores(a.cpuPct)} nhân</span></div>
+      <div class="card card-pad report-kpi"><span class="faint">RAM gói hosting</span><strong class="num">${bytes(p.memory.used)}</strong>${meter(p.memory.used, p.memory.limit)}<span class="dt-sub">trên ${bytes(p.memory.limit)} · app v2 ${bytes(a.rss)}</span><span class="dt-sub">Tính cả các website khác cùng tài khoản hosting.</span></div>
+      <div class="card card-pad report-kpi"><span class="faint">Ổ đĩa gói hosting</span><strong class="num">${bytes(p.disk.used)}</strong>${p.disk.limit ? meter(p.disk.used, p.disk.limit, 0.85) : ""}<span class="dt-sub">trên ${p.disk.limit ? bytes(p.disk.limit) : "—"} · mọi database ${bytes(p.mysqlDisk.used)}</span><span class="dt-sub">${s.folders.app == null && s.folders.state == null ? "Đang tính dung lượng thư mục…" : `App v2 ${bytes(s.folders.app)} · dữ liệu & sao lưu ${bytes(s.folders.state)}`}</span></div>
+      <div class="card card-pad report-kpi"><span class="faint">Tiến trình & truy cập</span><strong class="num">${p.processes.used}<small class="faint"> / ${p.processes.limit ?? "—"}</small></strong>${p.processes.limit ? meter(p.processes.used, p.processes.limit) : ""}<span class="dt-sub">Truy cập đồng thời ${p.entryProcesses.used} / ${p.entryProcesses.limit ?? "—"} · I/O ${bytes(p.io.used)}/s trên ${p.io.limit ? bytes(p.io.limit) + "/s" : "—"}</span></div>`
+      : `<div class="card card-pad report-kpi"><span class="faint">Gói hosting</span><strong>Chưa đọc được</strong><span class="dt-sub">Giới hạn CPU / RAM / ổ đĩa của gói chỉ đọc được trên máy chủ hosting (cPanel). App v2 đang dùng ${bytes(a.rss)} RAM, CPU ${pct(a.cpuPct)}.</span></div>`}
       <div class="card card-pad report-kpi"><span class="faint">Cơ sở dữ liệu</span><strong class="num">${bytes(s.database.bytes)}</strong><span class="dt-sub">${fmtNum(s.database.creators)} creator · ${fmtNum(s.database.creatorsWithMetrics)} kênh có chỉ số · ${fmtNum(s.database.clips)} clip</span><span class="dt-sub">${fmtNum(s.database.campaigns)} campaign (+${fmtNum(s.database.campaignsDeleted)} đã xoá) · ${fmtNum(s.database.posts)} bài đăng · ${fmtNum(s.database.sessions)} phiên</span></div>
     </div>
+    <p class="faint">${icon("help", 14)} Số liệu theo <strong>giới hạn gói hosting</strong> của tài khoản (cPanel · CloudLinux), cập nhật mỗi phút. Máy chủ vật lý dùng chung với nhiều khách hàng khác nên cấu hình của nó không phải tài nguyên của bạn và không hiện ở đây.</p>
     <div class="report-grid">
       ${jobCard("Nhập Google Sheet", s.jobs.import, s.sync.importMinutes ? `mỗi ${s.sync.importMinutes >= 60 ? s.sync.importMinutes / 60 + " giờ" : s.sync.importMinutes + " phút"}` : "đang tắt")}
       ${jobCard("Chỉ số YouTube & theo dõi bài", s.jobs.metrics, s.sync.metricsHours ? `mỗi ${s.sync.metricsHours} giờ · ${s.sync.metricsBatch} kênh/lượt` : "đang tắt")}
@@ -80,6 +87,47 @@ function jobCard(title, j, every) {
     <span class="faint">Lịch: ${every}${j ? ` · lần gần nhất ${relTime(j.startedAt)}${age > 24 * 60 ? " — quá 1 ngày, kiểm tra cron" : ""}` : ""}</span>
     ${j?.error ? `<span class="dt-sub">${esc(j.error)}</span>` : ""}
     <a class="link-btn" href="#/quan-tri?tab=dong-bo">Đổi lịch hoặc chạy ngay</a></section>`;
+}
+
+/* ---------- Người dùng: ai đã đăng nhập, vai trò, cấp quyền ---------- */
+const ROLE_HELP = [
+  ["viewer", "Chỉ xem creator, campaign, báo cáo. Không thấy giá, liên hệ; không sửa được. Mặc định cho người mới."],
+  ["planner", "Xem giá và liên hệ, tạo / sửa campaign của mình, sửa creator."],
+  ["manager", "Như Planner và xem, quản lý mọi campaign của team."],
+  ["admin", "Toàn quyền, gồm Quản trị: người dùng, đồng bộ, góp ý, campaign đã xoá."],
+];
+async function people(el) {
+  const r = await load("users", "/admin/users", el);
+  if (!r) return;
+  const me = (state.user?.email || "").toLowerCase();
+  const list = r.users || [];
+  const newbies = list.filter((u) => u.role === "viewer" && Date.now() - new Date(u.createdAt) < 14 * 864e5);
+  el.innerHTML = `
+    ${newbies.length ? `<div class="card card-pad welcome-news">${icon("person", 18)}<span><strong>${newbies.length} người mới đang ở quyền Viewer</strong> — chỉ xem, chưa thấy giá / liên hệ. Chọn vai trò phù hợp ở cột “Vai trò”.</span></div>` : ""}
+    <section class="card" data-tour="users-table"><div class="card-head"><h3>Người dùng (${list.length})</h3><span class="faint">Ai được đăng nhập do tab Employees trên Google Sheet quyết định; vai trò đặt ở đây.</span></div>
+      <div class="dt-wrap"><table class="dt"><thead><tr><th>Tên</th><th>Email</th><th>Vai trò</th><th>Đăng nhập gần nhất</th></tr></thead><tbody>
+      ${list.map((u) => { const self = u.email.toLowerCase() === me; const isNew = newbies.includes(u); return `<tr>
+        <td><strong>${esc(u.name)}</strong>${self ? ` <span class="badge">Bạn</span>` : ""}${isNew ? ` <span class="badge badge-primary">Mới</span>` : ""}</td>
+        <td class="faint">${esc(u.email)}</td>
+        <td><select class="select" data-role="${esc(u.email)}" aria-label="Vai trò của ${esc(u.name)}" ${self ? `disabled title="Không tự đổi vai trò của mình — nhờ Admin khác."` : ""}>${Object.keys(ROLES).map((k) => `<option value="${k}" ${k === u.role ? "selected" : ""}>${ROLES[k].label}</option>`).join("")}</select></td>
+        <td>${u.lastLoginAt ? relTime(u.lastLoginAt) : "—"}</td></tr>`; }).join("")}
+      </tbody></table></div></section>
+    <section class="card card-pad stack"><h3>Các vai trò</h3><ul class="bullets">${ROLE_HELP.map(([k, t]) => `<li><strong>${ROLES[k].label}</strong> — ${t}</li>`).join("")}</ul>
+      <p class="faint">Người đăng nhập lần đầu luôn là Viewer (ít quyền nhất). Muốn chặn hẳn ai đó: xoá họ khỏi tab Employees trên Sheet — phiên đăng nhập hết hiệu lực ngay.</p></section>`;
+  delegate(el, "change", "[data-role]", async (e, sel) => {
+    const email = sel.dataset.role, role = sel.value, before = list.find((u) => u.email === email)?.role;
+    if (before === "admin" && role !== "admin" && !confirm(`Bỏ quyền Admin của ${email}?\n\nHọ sẽ không vào được Quản trị nữa. Bạn đổi lại được bất cứ lúc nào.`)) { sel.value = before; return; }
+    sel.disabled = true;
+    try {
+      cache.users = await api("/admin/users", { method: "POST", body: { email, role } });
+      toast("Đã đổi vai trò", `${email} → ${ROLES[role].label}. Áp dụng ngay ở lần tải trang kế tiếp của họ.`);
+      refresh();
+    } catch (err) {
+      sel.value = before; sel.disabled = false;
+      const why = { cannot_change_own_role: "Không tự đổi vai trò của mình.", last_admin: "Phải còn ít nhất một Admin." }[err.body?.error] || "Lỗi " + err.message;
+      toast("Chưa đổi được", why, "danger");
+    }
+  });
 }
 
 /* ---------- Đồng bộ tự động ---------- */

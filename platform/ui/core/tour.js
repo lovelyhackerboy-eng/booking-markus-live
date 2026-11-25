@@ -63,7 +63,8 @@ export const CHECKPOINTS = [
     { sel: "#btn-help", title: "Xem lại hướng dẫn", body: "Mở lại danh sách checkpoint bất cứ lúc nào. Hướng dẫn cho tính năng mới có nhãn “Mới”." },
   ] },
   { id: "admin", since: "1.0.0", perm: "admin", title: "Quản trị hệ thống", goal: "Theo dõi máy chủ, lịch đồng bộ, góp ý và campaign đã xoá.", steps: [
-    { hash: "#/quan-tri?tab=he-thong", sel: ".report-kpis", title: "Tình trạng hệ thống", body: "Bộ nhớ app so với giới hạn gói hosting, ổ đĩa, dung lượng database và lần chạy gần nhất của các việc tự động." },
+    { hash: "#/quan-tri?tab=he-thong", sel: ".report-kpis", title: "Tình trạng hệ thống", body: "CPU, RAM, ổ đĩa và số tiến trình so với giới hạn gói hosting (không phải cả máy chủ dùng chung), dung lượng database và lần chạy gần nhất của các việc tự động." },
+    { hash: "#/quan-tri?tab=nguoi-dung", sel: "[data-tour=users-table]", title: "Cấp quyền cho người dùng", body: "Người đăng nhập lần đầu luôn là Viewer (chỉ xem). Chọn vai trò ở cột “Vai trò” để cấp thêm quyền; người mới có nhãn “Mới”." },
     { hash: "#/quan-tri?tab=dong-bo", sel: "[data-act=sy-save]", title: "Lịch đồng bộ tự động", body: "Đặt tần suất nhập Google Sheet, đọc chỉ số YouTube, số kênh mỗi lượt và chu kỳ làm mới trên trình duyệt. Có nút chạy ngay." },
     { sel: "[data-tour=tutorial-reset]", title: "Đưa mọi người về hướng dẫn", body: "Mặc định, mỗi lần cập nhật app mọi người thấy hộp chào và xem lại hướng dẫn. Tắt được, hoặc bấm đặt lại ngay khi có thay đổi lớn." },
     { hash: "#/quan-tri?tab=gop-y", sel: ".admin-tabs", title: "Hộp góp ý", body: "Đổi trạng thái (Mới → Đang xử lý → Đã xong) và ghi phản hồi — người gửi thấy ngay trong hộp Góp ý của họ." },
@@ -240,6 +241,7 @@ export function welcome({ returning = false, news = false } = {}) {
         <li><b>3</b><span><strong>Muốn dừng?</strong> Bấm “Thoát hướng dẫn” trên thanh tím hoặc phím Esc — lúc nào cũng được.</span></li>
       </ol>
       <p class="welcome-safe">${icon("lock", 16)}<span>Trong lúc hướng dẫn, app dùng <strong>dữ liệu mẫu</strong>: bạn bấm gì cũng không ảnh hưởng dữ liệu thật. Thanh tím <em>“Chế độ hướng dẫn”</em> luôn cho biết bạn đang ở đâu.</span></p>
+      ${state.user?.role === "viewer" ? `<p class="welcome-news">${icon("lock", 16)}<span>Bạn đang ở quyền <strong>Viewer</strong> (chỉ xem) — mặc định cho người mới. Cần xem giá, liên hệ hoặc tạo campaign? Nhờ Admin cấp quyền ở <em>Quản trị → Người dùng</em>.</span></p>` : ""}
       <p class="faint">${list.length} chặng ngắn · khoảng ${list.length} phút · bỏ dở thì lần sau xem tiếp được.</p>
     </div>`,
     footer: `<button class="btn btn-ghost" type="button" data-w="later">Để sau</button><span class="spacer"></span>
